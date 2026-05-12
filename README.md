@@ -1,10 +1,27 @@
-# MEMBRA SDK — Proof-of-Job Protocol
+# MEMBRA — Chat-to-Chain Human Value Infrastructure
+
+[![Membra SDK CI](https://github.com/nutclosedAI/membra/actions/workflows/ci.yml/badge.svg)](https://github.com/nutclosedAI/membra/actions/workflows/ci.yml)
 
 **A MacBook becomes a validator of human-compute contribution — not by pretending files are money, but by proving work, scoring yield, reaching consensus, and anchoring proof to Solana.**
 
 ⚠️ **WARNING:** MEMBRA does not guarantee income. It measures contribution, computes local proofs, benchmarks internal throughput, and anchors receipts. Any yield claim requires external protocol receipts, realized settlement, and legal/compliance review.
 
 > **📋 HONEST STATUS:** See `docs/STATUS.md` for exactly what is real, what is simulated, and what needs building before real money moves.
+
+## Current Chain State
+
+| Component | Status |
+|-----------|--------|
+| **Protocol Version** | v0.1 — No-custody, no-token |
+| **SDK / Proof Runtime** | ✅ LIVE — Python, Rust, C++ |
+| **Solana Program** | `membra_core` compiled; not deployed to devnet yet |
+| **Token Mint** | ❌ NOT CREATED |
+| **Mainnet Liquidity Pool** | ❌ NOT CREATED |
+| **Official Treasury** | $0.00 |
+| **Real Money Moved** | $0.00 |
+| **Execution Requires User Signature** | ✅ True |
+
+Read `docs/LIQUIDITY_BOUNDARIES.md` for the full financial status.
 
 ## What This Is
 

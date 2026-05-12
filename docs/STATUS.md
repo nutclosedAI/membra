@@ -14,6 +14,11 @@
 | Consent manager | ✅ Real | Grant/revoke/export works locally |
 | KYI notary framework | ✅ Real | Identity attestation without PII storage |
 | Artifact tracker | ✅ Real | File hash, test log, compile tracking works |
+| Solana `membra_core` program | ✅ Real | `cargo check` passes; 8 accounts, 11 instructions |
+| LLMGPT Python | ✅ Real | `py_compile` passes; full transformer from scratch |
+| LLMGPT C++ | ✅ Real | Compiles with clang++ -O3; 3.4M params; inference works |
+| TypeScript client SDK | ✅ Real | PDA helpers, instruction wrappers, fetchers |
+| Hugging Face demo | ✅ Real | 6-tab Gradio app showing full job lifecycle |
 | **Marketplace jobs** | ⚠️ **SIMULATION** | In-memory JSON storage. No real buyers. |
 | **Escrow** | ⚠️ **SIMULATION** | No real money held. JSON files in /tmp. |
 | **Payment receipts** | ⚠️ **SIMULATION** | No API calls to Stripe or Solana RPC. |
@@ -21,8 +26,8 @@
 | **Profit loop demo** | ⚠️ **SIMULATION** | Fake buyer, fake $50, fake payout. |
 | **DeFi operator** | ⚠️ **SIMULATION** | Architecture stub. Disabled by default. No real pools. |
 | Stripe Connect integration | 🔧 Ready for dev | `stripe_production.py` requires `MEMBRA_MODE=production` |
-| Solana devnet anchor | 🔧 Partial | Wallet exists, needs devnet SOL for real tx |
-| LLM inference | 🔧 Deterministic fallback | Groq API works if key provided, fallback otherwise |
+| Solana devnet anchor | 🔧 Partial | Program compiles; needs devnet SOL for real tx |
+| LLMGPT inference quality | 🔧 Random init | Needs training on validator corpus for quality |
 | P2P gossip | ❌ Not built | Consensus is local-only. No network layer. |
 
 ## What Works Right Now
