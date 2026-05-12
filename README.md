@@ -215,6 +215,67 @@ cargo build --release
 
 See `docs/BENCHMARKS.md` for methodology.
 
+## Solana On-Chain Program
+
+MEMBRA is an **on-chain proof-of-job protocol** on Solana.
+
+> **On-chain:** state transitions, hashes, votes, receipts, yield scores, consensus results.
+> **Off-chain:** raw prompts, full source code, model outputs, private data.
+> Off-chain data is **hashed and committed** on-chain via Merkle roots and metadata URI hashes.
+
+### Why Hashes, Not Raw Data
+
+Solana transactions have a **hard limit of 1,232 bytes**. Programs are stateless; mutable data lives in separate accounts. Full chat logs and source trees do not belong in transactions.
+
+The design stores **32-byte hashes** on-chain and **full data** off-chain (IPFS, Arweave, S3).
+
+### Program: `membra_core` (Anchor v0.30.1)
+
+| Account | Stores |
+|---------|--------|
+| `ProtocolConfig` | Authority, version, consensus threshold (66.67%) |
+| `JobAccount` | Creator, job_id_hash, chat_hash, job_spec_hash, status |
+| `ArtifactManifestAccount` | Artifact Merkle root, manifest hash, metadata URI hash |
+| `ValidatorAccount` | Authority, reputation, vote counts, active flag |
+| `VoteAccount` | Job, validator, accept/reject, score, reason_hash |
+| `ConsensusAccount` | yes_votes, no_votes, threshold_bps, result |
+| `YieldAccount` | artifact_yield, validation_yield, market_yield, chain_yield, total_score |
+| `SettlementAccount` | payer, recipient, amount_lamports, settlement_type, receipt_hash |
+
+### Instruction Flow
+
+```
+initialize → create_job → submit_artifact_manifest → submit_validator_vote →
+finalize_consensus → record_yield → record_settlement → close_job
+```
+
+### Build & Deploy
+
+```bash
+cd membra-sdk/programs/membra_core
+anchor build
+anchor deploy --provider.cluster devnet
+npx tsx scripts/initialize.ts --cluster devnet
+npx tsx scripts/test_flow.ts
+```
+
+### Security Model
+
+**v0.1 (Current): No Custody**
+- No token custody. No escrow. No DeFi. No automatic payout.
+- Just state transitions and hash commitments.
+
+**Roadmap:**
+| Version | Feature |
+|---------|---------|
+| v0.1 | State transitions + hash commitments |
+| v0.2 | SPL payment receipt accounts |
+| v0.3 | Bounty escrow |
+| v0.4 | Validator staking / reputation |
+| v1.0 | Full proof-of-job marketplace |
+
+Read `docs/SOLANA_PROGRAM.md` for full architecture.
+
 ## Proof-of-Yield Doctrine
 
 Proof-of-Yield is NOT "files = money." It is:

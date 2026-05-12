@@ -1,0 +1,22 @@
+[features]
+seeds = true
+skip-lint = false
+
+[programs.localnet]
+membra_core = "Membr1Core1111111111111111111111111111111111"
+
+[programs.devnet]
+membra_core = "Membr1Core1111111111111111111111111111111111"
+
+[programs.mainnet]
+membra_core = "Membr1Core1111111111111111111111111111111111"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "npx tsx tests/membra_core.ts"

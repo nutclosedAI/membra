@@ -1,0 +1,22 @@
+{
+  "name": "@membra/solana-client",
+  "version": "0.1.0",
+  "description": "MEMBRA Proof-of-Job Solana TypeScript Client SDK",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana/web3.js": "^1.91.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  },
+  "keywords": ["membra", "solana", "proof-of-job", "anchor", "validator"],
+  "license": "MIT"
+}
