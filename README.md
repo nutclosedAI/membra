@@ -41,6 +41,42 @@ MEMBRA SDK is a **local validator toolkit** that converts Mac compute, file-corp
 
 ## Architecture
 
+### Proof-of-Job Runtime
+
+```
+User chat prompt
+   ↓
+Intent Parser (Chat Compiler)
+   ↓
+Job Spec — structured executable unit
+   ↓
+Container Plan — runtime, model, tools, policy
+   ↓
+Execution Sandbox — Docker / local / dry-run
+   ↓
+Artifacts + Logs + Tests
+   ↓
+Yield Meter — 4 yield types scored
+   ↓
+Validator Consensus — 2/3 majority required
+   ↓
+Proof Bundle — root hash, portable, verifiable
+   ↓
+Settlement Adapter — invoice, bounty, grant, NFT, anchor
+```
+
+### Protocol Stack
+
+| Layer | Name | Purpose |
+|-------|------|---------|
+| 5 | Settlement | Payments, bounties, grants, NFTs, devnet receipts |
+| 4 | Consensus | Validator votes, quorum, rejection reasons |
+| 3 | Yield | Artifact score, test score, benchmark score |
+| 2 | Job | Container plan, model backend, tools, policy |
+| 1 | Chat | Human intent, prompt chain, task context |
+
+### Legacy Architecture (Still Active)
+
 ```
 Human Intent
     ↓
@@ -100,7 +136,32 @@ cd membra-sdk
 pip install -e ".[dev]"
 ```
 
-### CLI Commands
+### Proof-of-Job CLI
+
+```bash
+# Turn chat into a structured job spec
+membra chat "Build a Python FastAPI app for my proof runtime"
+
+# Create job from latest chat
+membra job create --from-chat latest
+
+# Run job (dry run / local execution)
+membra job run --job-id job_0001 --container python:3.11-slim
+
+# Score yield
+membra yield score --job-id job_0001 --tests-passed 18 --tests-total 18
+
+# Run consensus validation
+membra consensus validate --job-id job_0001 --validators 3
+
+# Export proof bundle
+membra proof export --job-id job_0001 --format zip
+
+# Preview settlement options
+membra settle preview --job-id job_0001
+```
+
+### Legacy CLI Commands
 
 ```bash
 # Start validator node
@@ -120,6 +181,11 @@ membra anchor --memo "batch-root-0xabc..."
 
 # Show status
 membra status
+
+# Distributed Brain Server (M5 + M1 LAN)
+membra brain start --host 0.0.0.0 --port 7777
+membra worker start --brain http://M5_IP:7777 --worker-id m1 --role reviewer
+membra job submit --brain http://127.0.0.1:7777 --type code-review "Review this repo"
 ```
 
 ### Rust CLI (M5 Pro Optimized)
@@ -169,46 +235,91 @@ Read `docs/PROOF_OF_YIELD.md` for the full doctrine.
 ```
 membra-sdk/
 ├── membra_sdk/
+│   ├── job/                     # Proof-of-Job Runtime (NEW)
+│   │   ├── chat_compiler.py   # Chat → JobSpec
+│   │   ├── job_spec.py        # Structured executable unit
+│   │   ├── artifact_hasher.py # SHA-256 for all outputs
+│   │   ├── yield_meter.py     # 4 yield types scored
+│   │   ├── validators.py      # Multi-role validation
+│   │   ├── consensus.py       # Quorum evaluation
+│   │   ├── proof_bundle.py    # Portable proof export
+│   │   └── settlement.py      # External receipt adapter
+│   ├── brain/                   # MoA Brain (Router/Judge/Synthesizer)
+│   │   ├── router.py
+│   │   ├── judge.py
+│   │   ├── synthesizer.py
+│   │   └── moa_orchestrator.py
+│   ├── rivl/                    # RIVL — Reinforcement Inverted Validator Learning
+│   │   ├── reward_engine.py   # +reward / -punishment scoring
+│   │   ├── punishment_memory.py # Retrieve past failures
+│   │   ├── verifier_stack.py  # Deterministic checks
+│   │   └── rivl_brain.py      # Full RIVL-MoA integration
+│   ├── brain_server/            # Distributed brain server
+│   │   └── server.py          # Flask REST API for LAN workers
+│   ├── worker/                  # Distributed worker client
+│   │   └── worker_client.py   # Poll brain, execute tasks
 │   ├── core/
-│   │   ├── node.py          # Validator orchestrator
-│   │   ├── ledger.py        # High-throughput internal ledger
-│   │   ├── yield_engine.py  # File corpus analysis
-│   │   └── artifacts.py     # Build artifact tracker
+│   │   ├── node.py            # Validator orchestrator
+│   │   ├── ledger.py          # High-throughput internal ledger
+│   │   ├── yield_engine.py    # File corpus analysis
+│   │   └── artifacts.py       # Build artifact tracker
 │   ├── consensus/
-│   │   └── poy.py           # Proof-of-Yield consensus
+│   │   └── poy.py             # Proof-of-Yield consensus
 │   ├── defi/
-│   │   └── operator.py      # Policy-gated DeFi (disabled by default)
+│   │   └── operator.py        # Policy-gated DeFi (disabled by default)
 │   └── cli/
-│       └── main.py          # Typer CLI
+│       └── main.py            # Typer CLI
 ├── rust_cli/
 │   ├── src/
-│   │   ├── main.rs          # CLI entry
-│   │   ├── ledger.rs        # Lock-free ledger (SegQueue)
-│   │   └── consensus.rs     # Rust PoY consensus
+│   │   ├── main.rs            # CLI entry
+│   │   ├── ledger.rs          # Lock-free ledger (SegQueue)
+│   │   └── consensus.rs       # Rust PoY consensus
 │   └── Cargo.toml
 ├── tests/
-│   ├── test_consensus.py    # 3-agent consensus
-│   └── test_artifacts.py    # Build artifact tracking
+│   ├── test_consensus.py      # 3-agent consensus
+│   └── test_artifacts.py      # Build artifact tracking
 ├── examples/
-│   ├── 3_agent_demo.py      # Multi-agent consensus
-│   ├── mine_files.py        # File corpus mining
-│   └── validate_prompt.py   # LLM validation
+│   ├── 3_agent_demo.py        # Multi-agent consensus
+│   ├── mine_files.py          # File corpus mining
+│   ├── validate_prompt.py     # LLM validation
+│   ├── moa_brain_demo.py      # MoA Brain demo
+│   ├── rivl_demo.py           # RIVL reward/punishment demo
+│   └── lan_two_mac_test.py    # M5 + M1 LAN test
 ├── docs/
-│   ├── PROOF_OF_YIELD.md    # Yield doctrine
-│   ├── BENCHMARKS.md        # Benchmark methodology
-│   └── SECURITY.md          # Key handling & policies
+│   ├── PROOF_OF_JOB.md        # Proof-of-Job architecture (NEW)
+│   ├── YIELD_DEFINITIONS.md   # Legal yield definitions (NEW)
+│   ├── MOA_BRAIN.md           # Mixture-of-Agents brain
+│   ├── RIVL.md                # Reinforcement Inverted Validator Learning
+│   ├── LAN_TEST.md            # Two-Mac LAN test guide
+│   ├── PROOF_OF_YIELD.md      # Yield doctrine
+│   ├── BENCHMARKS.md          # Benchmark methodology
+│   └── SECURITY.md            # Key handling & policies
+├── app.py                       # Hugging Face 6-tab Gradio demo
 ├── pyproject.toml
 └── README.md
 ```
 
 ## Next Milestone
 
-1. Run 3 `membra start` agents on same LAN
-2. Each agent processes same file batch
-3. P2P gossip shares inference + yield hashes
-4. 2/3 agreement → batch finalizes locally
-5. Anchor finalized root to Solana devnet (requires devnet SOL)
-6. Display Solana explorer receipt
+### Proof-of-Job Pipeline (M5 Pro)
+1. `membra chat "Build a proof-of-job demo app"` → job spec created
+2. `membra job run --job-id <id>` → local execution with Ollama
+3. `membra yield score --job-id <id>` → artifacts + tests scored
+4. `membra consensus validate --job-id <id>` → validators vote 2/3
+5. `membra proof export --job-id <id>` → proof bundle with root hash
+6. `membra settle preview --job-id <id>` → invoice, bounty, or anchor options
+
+### Distributed Test (M5 Pro + M1 Pro LAN)
+1. M5 Pro: `membra brain start --host 0.0.0.0 --port 7777`
+2. M5 Pro: `membra worker start --brain http://127.0.0.1:7777 --role coder`
+3. M1 Pro: `membra worker start --brain http://M5_IP:7777 --role reviewer`
+4. Submit job: `membra job submit --prompt "Review this repo"`
+5. Verify: both workers execute, results merge, artifact hash created
+
+### Solana Settlement
+1. Anchor proof root to Solana devnet (requires devnet SOL)
+2. Display Solana explorer receipt
+3. Verify on-chain proof of job completion
 
 ## License
 
