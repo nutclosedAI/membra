@@ -43,6 +43,11 @@ from membra_sdk.job.validators import ValidatorSet
 from membra_sdk.job.consensus import ConsensusEngine
 from membra_sdk.job.proof_bundle import ProofBundle
 from membra_sdk.job.settlement import SettlementAdapter
+from membra_sdk.llm.gpt import LLMGPT, GPTConfig
+from membra_sdk.llm.tokenizer import ByteTokenizer
+from membra_sdk.llm.terminal_chat import TerminalChat
+from membra_sdk.llm.validator import ValidatorEngine
+from membra_sdk.llm.solana_bridge import SolanaValidatorBridge
 
 app = typer.Typer(name="membra", help="Membra SDK — Local Proof-of-Yield Validator Kit")
 console = Console()
@@ -855,6 +860,108 @@ def settle_cmd(
         console.print("Suggested actions:")
         for action in preview.get("suggested_actions", []):
             console.print(f"  • {action}")
+
+
+@app.command(name="validator")
+def validator_start(
+    model: str = typer.Option("llmgpt", "--model", help="Model type: llmgpt, ollama"),
+    checkpoint: Optional[str] = typer.Option(None, "--checkpoint", help="Path to LLMGPT checkpoint"),
+    n_layer: int = typer.Option(4, "--n-layer", help="Number of transformer layers"),
+    n_head: int = typer.Option(4, "--n-head", help="Number of attention heads"),
+    n_embd: int = typer.Option(256, "--n-embd", help="Embedding dimension"),
+    temperature: float = typer.Option(0.8, "--temperature", help="Sampling temperature"),
+    top_k: int = typer.Option(40, "--top-k", help="Top-k sampling"),
+    mode: str = typer.Option("chat", "--mode", help="Mode: chat, validate, evaluate"),
+    job_id: Optional[str] = typer.Option(None, "--job-id", help="Job ID for validator mode"),
+    solana: bool = typer.Option(False, "--solana", help="Submit votes to Solana devnet"),
+):
+    """Start MEMBRA LLMGPT — terminal-native AI validator."""
+    console.print(Panel.fit(
+        "[bold cyan]MEMBRA LLMGPT[/bold cyan] — Terminal-Native AI Validator",
+        border_style="cyan",
+    ))
+
+    if model == "llmgpt":
+        config = GPTConfig(n_layer=n_layer, n_head=n_head, n_embd=n_embd)
+        console.print(f"   Model: LLMGPT {n_layer}L/{n_head}H/{n_embd}D")
+        console.print(f"   Params: {config.param_count:,}")
+        console.print(f"   Checkpoint: {checkpoint or 'random init'}")
+
+        if checkpoint and os.path.exists(checkpoint):
+            llm = LLMGPT.load_checkpoint(checkpoint)
+            console.print(f"   [green]Loaded checkpoint: {checkpoint}[/green]")
+        else:
+            llm = LLMGPT(config)
+            console.print("   [yellow]Random initialization (train or load checkpoint)[/yellow]")
+
+        if mode == "chat":
+            chat = TerminalChat(
+                model=llm,
+                temperature=temperature,
+                top_k=top_k,
+            )
+            chat.run()
+
+        elif mode == "validate":
+            console.print("[yellow]Validator mode: evaluating job artifacts...[/yellow]")
+            engine = ValidatorEngine(llm)
+
+            if job_id:
+                job_dir = Path.home() / ".membra" / "jobs" / f"{job_id}.json"
+                if job_dir.exists():
+                    job = JobSpec.load(str(job_dir))
+                    artifacts = [{"path": o} for o in job.expected_outputs]
+                    result = engine.evaluate(job.intent, artifacts)
+                    console.print(f"\n[bold]Validation Result:[/bold]")
+                    console.print(f"  Vote: {'ACCEPT' if result['vote'] == 1 else 'REJECT'}")
+                    console.print(f"  Score: {result['score']}")
+                    console.print(f"  Reason: {result['reason']}")
+
+                    if solana:
+                        bridge = SolanaValidatorBridge(cluster="devnet")
+                        bridge.submit_full_evaluation(
+                            job_pda=job_id,
+                            validator_pda=job_id,  # TODO: real validator PDA
+                            evaluation=result,
+                        )
+                else:
+                    console.print(f"[red]Job {job_id} not found[/red]")
+            else:
+                console.print("[red]Use --job-id to specify job[/red]")
+
+        elif mode == "evaluate":
+            console.print("[yellow]Evaluation mode: interactive artifact review[/yellow]")
+            engine = ValidatorEngine(llm)
+            console.print("Enter artifact path (or 'done' to finish):")
+            artifacts = []
+            while True:
+                path = input("> ")
+                if path.lower() in ("done", ""):
+                    break
+                if os.path.exists(path):
+                    try:
+                        with open(path) as f:
+                            content = f.read()
+                        artifacts.append({"path": path, "content": content})
+                        console.print(f"  Added: {path}")
+                    except Exception as e:
+                        console.print(f"  [red]Error: {e}[/red]")
+                else:
+                    console.print(f"  [red]File not found: {path}[/red]")
+
+            if artifacts:
+                intent = input("Job intent: ")
+                result = engine.evaluate(intent, artifacts)
+                console.print(f"\n[bold]Evaluation:[/bold]")
+                console.print(f"  Vote: {'ACCEPT' if result['vote'] == 1 else 'REJECT'}")
+                console.print(f"  Score: {result['score']}")
+                console.print(f"  Reason: {result['reason']}")
+
+        else:
+            console.print(f"[red]Unknown mode: {mode}. Use: chat, validate, evaluate[/red]")
+
+    else:
+        console.print(f"[red]Unknown model: {model}. Use: llmgpt[/red]")
 
 
 def main():
