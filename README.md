@@ -23,6 +23,52 @@
 
 Read `docs/LIQUIDITY_BOUNDARIES.md` for the full financial status.
 
+### Production Launch Phrase
+
+> **MEMBRA begins token and liquidity only after the agent is operational, proof is published, treasury is funded, and a human or multisig signs the Solana transactions.**
+
+### Token Launch State Machine
+
+```
+AGENT_READY
+    ↓
+CORPUS_INDEXED
+    ↓
+PROOF_MANIFEST_PUBLISHED
+    ↓
+WALLET_CONNECTED
+    ↓
+TREASURY_FUNDED (≥0.25 SOL, ≥500 USDC)
+    ↓
+DEVNET_RECEIPT_RECORDED
+    ↓
+MAINNET_MINT_PREPARED
+    ↓
+HUMAN_OR_MULTISIG_APPROVED ← hard gate
+    ↓
+MEMBRA_MINT_CREATED
+    ↓
+SUPPLY_MINTED
+    ↓
+MINT_POLICY_LOCKED
+    ↓
+RAYDIUM_POOL_PREPARED
+    ↓
+HUMAN_OR_MULTISIG_APPROVED ← hard gate
+    ↓
+POOL_CREATED
+    ↓
+LP_POSITION_RECORDED
+    ↓
+TREASURY_STAKING_POLICY_ENABLED
+    ↓
+OPTIONAL_LIQUID_STAKING_EXECUTED
+    ↓
+SWAP_ROUTING_ENABLED
+```
+
+The `HUMAN_OR_MULTISIG_APPROVED` gates are enforced by `membra_sdk/token_gate.py::can_begin_token_and_liquidity()`. The agent may **prepare** transactions but may **never** auto-sign mainnet actions.
+
 ## What This Is
 
 MEMBRA SDK is a **multi-language proof-of-job protocol** that transforms chat into containerized jobs, scores their output as yield, validates through consensus, and anchors proof bundles to Solana. It includes:

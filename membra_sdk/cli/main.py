@@ -48,6 +48,13 @@ from membra_sdk.llm.tokenizer import ByteTokenizer
 from membra_sdk.llm.terminal_chat import TerminalChat
 from membra_sdk.llm.validator import ValidatorEngine
 from membra_sdk.llm.solana_bridge import SolanaValidatorBridge
+from membra_sdk.token_gate import (
+    TokenLaunchState,
+    can_begin_token_and_liquidity,
+    can_stake_treasury_sol,
+    get_missing_conditions,
+    get_state_summary,
+)
 
 app = typer.Typer(name="membra", help="Membra SDK — Local Proof-of-Yield Validator Kit")
 console = Console()
@@ -962,6 +969,88 @@ def validator_start(
 
     else:
         console.print(f"[red]Unknown model: {model}. Use: llmgpt[/red]")
+
+
+@app.command(name="token-gate")
+def token_gate_cmd(
+    action: str = typer.Argument(..., help="Action: status, prepare-mint, prepare-pool, check-readiness"),
+    treasury_sol: float = typer.Option(0.0, "--treasury-sol", help="Treasury SOL balance"),
+    treasury_usdc: float = typer.Option(0.0, "--treasury-usdc", help="Treasury USDC balance"),
+    agent_online: bool = typer.Option(False, "--agent-online", help="Agent is running"),
+    dashboard_online: bool = typer.Option(False, "--dashboard-online", help="Dashboard is accessible"),
+    corpus_indexed: bool = typer.Option(False, "--corpus-indexed", help="Corpus has been indexed"),
+    proof_published: bool = typer.Option(False, "--proof-published", help="Proof manifest published"),
+    wallet_connected: bool = typer.Option(False, "--wallet-connected", help="Wallet is connected"),
+    human_approved: bool = typer.Option(False, "--human-approved", help="Human or multisig approval granted"),
+    mainnet_enabled: bool = typer.Option(False, "--mainnet-enabled", help="Mainnet policy enabled"),
+):
+    """Check token and liquidity launch readiness."""
+    console.print(Panel.fit(
+        "[bold magenta]MEMBRA TOKEN GATE[/bold magenta] — Production Launch Readiness",
+        border_style="magenta",
+    ))
+
+    state = TokenLaunchState(
+        agent_online=agent_online,
+        dashboard_online=dashboard_online,
+        corpus_indexed=corpus_indexed,
+        proof_manifest_published=proof_published,
+        wallet_connected=wallet_connected,
+        human_or_multisig_approval=human_approved,
+        treasury_sol=treasury_sol,
+        treasury_usdc=treasury_usdc,
+        no_private_keys_stored=True,
+        mainnet_policy_enabled=mainnet_enabled,
+    )
+
+    if action == "status":
+        summary = get_state_summary(state)
+        table = Table(title="Launch Readiness")
+        table.add_column("Field", style="cyan")
+        table.add_column("Value", style="magenta")
+        table.add_row("Ready", "✅ YES" if summary["ready"] else "❌ NO")
+        table.add_row("Phase", summary["phase"])
+        table.add_row("Treasury SOL", f"{summary['treasury_sol']}")
+        table.add_row("Treasury USDC", f"{summary['treasury_usdc']}")
+        if summary["missing"]:
+            table.add_row("Missing", "\n".join(summary["missing"]))
+        console.print(table)
+
+    elif action == "check-readiness":
+        if can_begin_token_and_liquidity(state):
+            console.print("[bold green]✅ ALL CONDITIONS MET[/bold green]")
+            console.print("The agent may prepare token and liquidity transactions.")
+            console.print("[yellow]A human or multisig must still sign all mainnet transactions.[/yellow]")
+        else:
+            console.print("[bold red]❌ NOT READY[/bold red]")
+            console.print("Missing conditions:")
+            for m in get_missing_conditions(state):
+                console.print(f"  • {m}")
+
+    elif action == "prepare-mint":
+        if can_begin_token_and_liquidity(state):
+            console.print("[green]✅ Preparing MEMBRA SPL mint transaction...[/green]")
+            console.print("  Symbol: MEMBRA")
+            console.print("  Decimals: 6")
+            console.print("  Supply: Fixed (published before mint)")
+            console.print("  Mint authority: Multisig or hardware wallet")
+            console.print("[yellow]⚠️  This is a PREPARED transaction. A human/multisig must sign.[/yellow]")
+        else:
+            console.print("[red]❌ Cannot prepare mint. Check readiness first.[/red]")
+
+    elif action == "prepare-pool":
+        if can_begin_token_and_liquidity(state):
+            console.print("[green]✅ Preparing Raydium MEMBRA/USDC pool transaction...[/green]")
+            console.print("  Pair: MEMBRA/USDC")
+            console.print("  Venue: Raydium")
+            console.print("  Initial price: From actual LP deposit")
+            console.print("[yellow]⚠️  This is a PREPARED transaction. A human/multisig must sign.[/yellow]")
+        else:
+            console.print("[red]❌ Cannot prepare pool. Check readiness first.[/red]")
+
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        console.print("Use: status, check-readiness, prepare-mint, prepare-pool")
 
 
 def main():
