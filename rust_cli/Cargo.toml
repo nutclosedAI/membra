@@ -1,0 +1,30 @@
+[package]
+name = "membra-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["Membra Network"]
+description = "Membra CLI — High-throughput validator for M5 Pro"
+license = "MIT"
+
+[[bin]]
+name = "membra"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full", "rt-multi-thread"] }
+clap = { version = "4.4", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha3 = "0.10"
+hex = "0.4"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+dashmap = "5.5"
+crossbeam = "0.8"
+rayon = "1.8"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

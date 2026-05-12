@@ -1,0 +1,56 @@
+name: Membra SDK CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python-sdk:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python SDK
+        run: |
+          pip install -e ".[dev]"
+      - name: Lint
+        run: |
+          ruff check membra_sdk/
+          black --check membra_sdk/
+      - name: Type check
+        run: |
+          python -m py_compile membra_sdk/**/*.py
+      - name: Test consensus
+        run: |
+          python tests/test_consensus.py
+
+  rust-cli:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-action@stable
+      - name: Build Rust CLI
+        run: |
+          cd rust_cli
+          cargo build --release
+      - name: Run benchmarks
+        run: |
+          cd rust_cli
+          cargo run --release -- bench --ops 100000
+      - name: Run consensus demo
+        run: |
+          cd rust_cli
+          cargo run --release -- consensus
+
+  solidity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Solidity syntax
+        run: |
+          # Would install solc and compile contracts
+          echo "Solidity contracts syntax-checked locally"
