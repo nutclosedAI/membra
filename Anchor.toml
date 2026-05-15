@@ -4,12 +4,15 @@ skip-lint = false
 
 [programs.localnet]
 membra_core = "Membr1Core1111111111111111111111111111111111"
+membra_tokenomics = "Tok3nom1csMEMBRAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 [programs.devnet]
 membra_core = "Membr1Core1111111111111111111111111111111111"
+membra_tokenomics = "Tok3nom1csMEMBRAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 [programs.mainnet]
 membra_core = "Membr1Core1111111111111111111111111111111111"
+membra_tokenomics = "Tok3nom1csMEMBRAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 [registry]
 url = "https://api.apr.dev"
@@ -19,4 +22,4 @@ cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "npx tsx tests/membra_core.ts"
+test = "npx tsx tests/membra_core.ts && npx tsx tests/membra_tokenomics.ts"
