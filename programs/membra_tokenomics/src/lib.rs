@@ -219,24 +219,29 @@ pub mod membra_tokenomics {
         let seeds = &[b"token_sale", &sale.sale_id.to_le_bytes(), &[sale.bump]];
         let signer = &[&seeds[..]];
 
-        transfer_lamports(
+        let sys = ctx.accounts.system_program.to_account_info();
+        transfer_lamports_cpi(
             &ctx.accounts.buyer.to_account_info(),
             &ctx.accounts.treasury.to_account_info(),
+            &sys,
             to_treasury,
         )?;
-        transfer_lamports(
+        transfer_lamports_cpi(
             &ctx.accounts.buyer.to_account_info(),
             &ctx.accounts.protocol_wallet.to_account_info(),
+            &sys,
             to_protocol,
         )?;
-        transfer_lamports(
+        transfer_lamports_cpi(
             &ctx.accounts.buyer.to_account_info(),
             &ctx.accounts.validator_pool.to_account_info(),
+            &sys,
             to_validator,
         )?;
-        transfer_lamports(
+        transfer_lamports_cpi(
             &ctx.accounts.buyer.to_account_info(),
             &ctx.accounts.early_reward_pool.to_account_info(),
+            &sys,
             to_early_reward,
         )?;
 
@@ -527,23 +532,20 @@ fn calculate_time_decay_bonus(
     Ok(bonus)
 }
 
-fn transfer_lamports(
+fn transfer_lamports_cpi(
     from: &AccountInfo,
     to: &AccountInfo,
+    system_program: &AccountInfo,
     amount: u64,
 ) -> Result<()> {
     require!(
         from.lamports() >= amount,
         MembraTokenomicsError::InsufficientFunds
     );
-    **from.try_borrow_mut_lamports()? = from
-        .lamports()
-        .checked_sub(amount)
-        .unwrap();
-    **to.try_borrow_mut_lamports()? = to
-        .lamports()
-        .checked_add(amount)
-        .unwrap();
+    invoke(
+        &system_instruction::transfer(from.key, to.key, amount),
+        &[from.clone(), to.clone(), system_program.clone()],
+    )?;
     Ok(())
 }
 
