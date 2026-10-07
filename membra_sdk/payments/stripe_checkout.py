@@ -11,11 +11,11 @@ Environment:
 Usage:
     python3 examples/real_stripe_job.py
 """
+
 import hashlib
 import json
 import os
 import time
-from typing import Dict, Optional
 
 import stripe
 
@@ -24,7 +24,6 @@ from membra_sdk.config import MembraConfig
 
 class StripeCheckoutError(Exception):
     """Raised when Stripe checkout fails."""
-    pass
 
 
 class MembraStripeCheckout:
@@ -36,7 +35,9 @@ class MembraStripeCheckout:
     """
 
     PRODUCT_NAME = "AI Artifact Build"
-    PRODUCT_DESCRIPTION = "Custom AI-generated code artifact with tests, hash, and build report"
+    PRODUCT_DESCRIPTION = (
+        "Custom AI-generated code artifact with tests, hash, and build report"
+    )
     AMOUNT_USD = 25.00
 
     def __init__(self):
@@ -57,11 +58,13 @@ class MembraStripeCheckout:
         self.webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
         # Storage for confirmed payments
-        self.confirmed_payments: Dict[str, Dict] = {}
+        self.confirmed_payments: dict[str, dict] = {}
         self.storage_path = os.path.expanduser("~/.membra/stripe_payments.json")
         self._load_payments()
 
-    def create_checkout_session(self, buyer_email: str, job_id: str = None) -> Dict:
+    def create_checkout_session(
+        self, buyer_email: str, job_id: str | None = None
+    ) -> dict:
         """Create a Stripe Checkout Session for a $25 AI artifact build.
 
         Returns:
@@ -73,22 +76,29 @@ class MembraStripeCheckout:
                 "status": "created",
             }
         """
-        job_id = job_id or f"job-{int(time.time())}-{hashlib.sha256(buyer_email.encode()).hexdigest()[:8]}"
+        job_id = (
+            job_id
+            or f"job-{int(time.time())}-{hashlib.sha256(buyer_email.encode()).hexdigest()[:8]}"
+        )
 
         try:
             session = stripe.checkout.Session.create(
                 payment_method_types=["card"],
-                line_items=[{
-                    "price_data": {
-                        "currency": "usd",
-                        "product_data": {
-                            "name": self.PRODUCT_NAME,
-                            "description": self.PRODUCT_DESCRIPTION,
+                line_items=[
+                    {
+                        "price_data": {
+                            "currency": "usd",
+                            "product_data": {
+                                "name": self.PRODUCT_NAME,
+                                "description": self.PRODUCT_DESCRIPTION,
+                            },
+                            "unit_amount": int(
+                                self.AMOUNT_USD * 100
+                            ),  # $25.00 in cents
                         },
-                        "unit_amount": int(self.AMOUNT_USD * 100),  # $25.00 in cents
-                    },
-                    "quantity": 1,
-                }],
+                        "quantity": 1,
+                    }
+                ],
                 mode="payment",
                 success_url=f"http://localhost:8080/success?session_id={{CHECKOUT_SESSION_ID}}&job_id={job_id}",
                 cancel_url=f"http://localhost:8080/cancel?job_id={job_id}",
@@ -115,7 +125,7 @@ class MembraStripeCheckout:
         except stripe.error.StripeError as e:
             raise StripeCheckoutError(f"Stripe API error: {e}")
 
-    def verify_webhook(self, payload: bytes, signature: str) -> Optional[Dict]:
+    def verify_webhook(self, payload: bytes, signature: str) -> dict | None:
         """Verify and parse a Stripe webhook event.
 
         Returns the event dict if valid, None if invalid.
@@ -128,7 +138,9 @@ class MembraStripeCheckout:
                 return None
 
         try:
-            event = stripe.Webhook.construct_event(payload, signature, self.webhook_secret)
+            event = stripe.Webhook.construct_event(
+                payload, signature, self.webhook_secret
+            )
             return {
                 "id": event.id,
                 "type": event.type,
@@ -136,10 +148,10 @@ class MembraStripeCheckout:
             }
         except stripe.error.SignatureVerificationError:
             return None
-        except Exception:
+        except Exception:  # noqa: BLE001 — webhook parse failure becomes None result
             return None
 
-    def handle_checkout_completed(self, session: Dict) -> Dict:
+    def handle_checkout_completed(self, session: dict) -> dict:
         """Process checkout.session.completed webhook.
 
         This is the ONLY place where MEMBRA marks revenue as verified.
@@ -179,19 +191,19 @@ class MembraStripeCheckout:
 
         return confirmed
 
-    def get_confirmed_payment(self, session_id: str) -> Optional[Dict]:
+    def get_confirmed_payment(self, session_id: str) -> dict | None:
         return self.confirmed_payments.get(session_id)
 
     def list_confirmed_payments(self) -> list:
         return list(self.confirmed_payments.values())
 
-    def _save_payment(self, payment: Dict):
+    def _save_payment(self, payment: dict):
         """Persist payment record to local JSON."""
         self.confirmed_payments[payment.get("session_id", "")] = payment
         try:
             with open(self.storage_path, "w") as f:
                 json.dump(self.confirmed_payments, f, indent=2, default=str)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 — tolerate unwritable payment store
             pass
 
     def _load_payments(self):
@@ -200,5 +212,5 @@ class MembraStripeCheckout:
         try:
             with open(self.storage_path) as f:
                 self.confirmed_payments = json.load(f)
-        except Exception:
+        except Exception:  # noqa: BLE001 — tolerate corrupt payment store
             self.confirmed_payments = {}

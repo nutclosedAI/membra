@@ -8,14 +8,13 @@ Proof-of-Yield: validators agree on BOTH:
 A batch only finalizes if 2/3 of validators agree on BOTH.
 This ties consensus to actual economic productivity.
 """
+
 import asyncio
 import hashlib
-import json
 import os
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List
 
 
 @dataclass
@@ -23,7 +22,7 @@ class PoYVote:
     agent_id: str
     state_root: str
     inference_hash: str  # hash of LLM output
-    yield_hash: str      # hash of yield estimate
+    yield_hash: str  # hash of yield estimate
     total_yield: float
     confidence: float
     timestamp: float
@@ -33,7 +32,7 @@ class PoYVote:
 class PoYRound:
     round_id: str
     state_root: str
-    votes: List[PoYVote] = field(default_factory=list)
+    votes: list[PoYVote] = field(default_factory=list)
     threshold: float = 0.6667
     finalized: bool = False
     finality_time: float = 0.0
@@ -59,8 +58,8 @@ Your response will be hashed and used as a consensus vote."""
     def __init__(self, agent_id: str, groq_key: str = ""):
         self.agent_id = agent_id
         self.groq_key = groq_key or os.environ.get("GROQ_API_KEY", "")
-        self.rounds: Dict[str, PoYRound] = {}
-        self.vote_history: List[Dict] = []
+        self.rounds: dict[str, PoYRound] = {}
+        self.vote_history: list[dict] = []
 
     def _call_llm(self, prompt: str) -> str:
         """Run inference via Groq or deterministic fallback."""
@@ -69,6 +68,7 @@ Your response will be hashed and used as a consensus vote."""
             return f"VALID|YIELD={hash(prompt) % 1000 / 1000:.6f}|REASON=agreed"
 
         import requests
+
         headers = {
             "Authorization": f"Bearer {self.groq_key}",
             "Content-Type": "application/json",
@@ -76,17 +76,24 @@ Your response will be hashed and used as a consensus vote."""
         data = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
-                {"role": "system", "content": "You are a precise validator. One line answers only."},
+                {
+                    "role": "system",
+                    "content": "You are a precise validator. One line answers only.",
+                },
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.0,
             "max_tokens": 30,
         }
         try:
-            resp = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                                  headers=headers, json=data, timeout=20)
+            resp = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=20,
+            )
             return resp.json()["choices"][0]["message"]["content"].strip()
-        except Exception:
+        except Exception:  # noqa: BLE001
             return "VALID|YIELD=0.500000|REASON=default"
 
     def _hash_inference(self, text: str) -> str:
@@ -148,26 +155,34 @@ Your response will be hashed and used as a consensus vote."""
             inf_counts[v.inference_hash] += 1
             yield_counts[v.yield_hash] += 1
 
-        top_inf, inf_count = max(inf_counts.items(), key=lambda x: x[1])
-        top_yield, yield_count = max(yield_counts.items(), key=lambda x: x[1])
+        _top_inf, inf_count = max(inf_counts.items(), key=lambda x: x[1])
+        _top_yield, yield_count = max(yield_counts.items(), key=lambda x: x[1])
 
         total = len(r.votes)
         # Exact 2/3 on BOTH dimensions
         if (inf_count * 3 >= total * 2) and (yield_count * 3 >= total * 2):
             r.finalized = True
             r.finality_time = time.time()
-            self.vote_history.append({
-                "state_root": state_root,
-                "votes": total,
-                "inf_agreement": inf_count / total,
-                "yield_agreement": yield_count / total,
-                "finality_ms": round((r.finality_time - r.votes[0].timestamp) * 1000, 2),
-            })
+            self.vote_history.append(
+                {
+                    "state_root": state_root,
+                    "votes": total,
+                    "inf_agreement": inf_count / total,
+                    "yield_agreement": yield_count / total,
+                    "finality_ms": round(
+                        (r.finality_time - r.votes[0].timestamp) * 1000, 2
+                    ),
+                }
+            )
 
     def get_round(self, state_root: str) -> PoYRound:
-        return self.rounds.get(state_root, PoYRound(round_id="empty", state_root=state_root))
+        return self.rounds.get(
+            state_root, PoYRound(round_id="empty", state_root=state_root)
+        )
 
-    async def run_poy_round(self, state_root: str, batch: list, total_yield: float) -> PoYRound:
+    async def run_poy_round(
+        self, state_root: str, batch: list, total_yield: float
+    ) -> PoYRound:
         """Run full proof-of-yield consensus round."""
         our_vote = self.cast_vote(state_root, batch, total_yield)
         self.add_external_vote(our_vote)
@@ -180,16 +195,20 @@ Your response will be hashed and used as a consensus vote."""
                 break
             await asyncio.sleep(0.5)
 
-        return self.rounds.get(state_root, PoYRound(round_id="empty", state_root=state_root))
+        return self.rounds.get(
+            state_root, PoYRound(round_id="empty", state_root=state_root)
+        )
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         finalized = [r for r in self.rounds.values() if r.finalized]
         return {
             "agent_id": self.agent_id,
             "total_rounds": len(self.rounds),
             "finalized": len(finalized),
             "avg_finality_ms": round(
-                sum(v.get("finality_ms", 0) for v in self.vote_history) / max(len(self.vote_history), 1), 2
+                sum(v.get("finality_ms", 0) for v in self.vote_history)
+                / max(len(self.vote_history), 1),
+                2,
             ),
             "recent": self.vote_history[-3:],
         }

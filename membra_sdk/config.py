@@ -9,6 +9,7 @@ Environment variables:
 
 The mode toggle prevents accidental real money movement during development.
 """
+
 import os
 from enum import Enum
 
@@ -36,7 +37,9 @@ class MembraConfig:
         self.mode = MembraMode(os.environ.get("MEMBRA_MODE", "simulation").lower())
         self.stripe_secret_key = os.environ.get("STRIPE_SECRET_KEY", "")
         self.stripe_publishable_key = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
-        self.solana_rpc = os.environ.get("SOLANA_RPC_URL", "https://api.devnet.solana.com")
+        self.solana_rpc = os.environ.get(
+            "SOLANA_RPC_URL", "https://api.devnet.solana.com"
+        )
         self.groq_api_key = os.environ.get("GROQ_API_KEY", "")
 
     def is_simulation(self) -> bool:

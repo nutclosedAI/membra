@@ -8,14 +8,14 @@ No browser. No Gradio. Pure terminal with:
 - Conversation history
 - Model stats display
 """
+
 import os
 import sys
 import time
-from typing import List, Optional
 
 import torch
 
-from .gpt import GPTConfig, LLMGPT
+from .gpt import LLMGPT, GPTConfig
 from .tokenizer import ByteTokenizer
 
 
@@ -33,10 +33,10 @@ class TerminalChat:
 
     def __init__(
         self,
-        model: Optional[LLMGPT] = None,
-        tokenizer: Optional[ByteTokenizer] = None,
-        config: Optional[GPTConfig] = None,
-        device: Optional[str] = None,
+        model: LLMGPT | None = None,
+        tokenizer: ByteTokenizer | None = None,
+        config: GPTConfig | None = None,
+        device: str | None = None,
         max_new_tokens: int = 512,
         temperature: float = 0.8,
         top_k: int = 40,
@@ -46,7 +46,9 @@ class TerminalChat:
         self.config = config or GPTConfig()
 
         if model is None:
-            print(f"Initializing LLMGPT ({self.config.param_count:,} params) on {self.device}...")
+            print(
+                f"Initializing LLMGPT ({self.config.param_count:,} params) on {self.device}..."
+            )
             self.model = LLMGPT(self.config).to(self.device)
             print(f"Model ready. {self.model.count_parameters():,} parameters.")
         else:
@@ -55,7 +57,7 @@ class TerminalChat:
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
         self.top_k = top_k
-        self.history: List[str] = []
+        self.history: list[str] = []
         self.system_prompt = (
             "You are MEMBRA, a terminal-native AI validator. "
             "You evaluate code, tests, and artifacts. "
@@ -65,7 +67,9 @@ class TerminalChat:
     def _print_banner(self):
         print("=" * 60)
         print("  MEMBRA LLMGPT — Terminal-Native AI Validator")
-        print(f"  Model: {self.config.n_layer}L/{self.config.n_head}H/{self.config.n_embd}D")
+        print(
+            f"  Model: {self.config.n_layer}L/{self.config.n_head}H/{self.config.n_embd}D"
+        )
         print(f"  Params: {self.model.count_parameters():,}")
         print(f"  Device: {self.model.device_info()}")
         print("=" * 60)
@@ -130,7 +134,9 @@ class TerminalChat:
             print("  /quit                 — Exit")
 
         elif action == "/status":
-            print(f"Model: {self.config.n_layer}L/{self.config.n_head}H/{self.config.n_embd}D")
+            print(
+                f"Model: {self.config.n_layer}L/{self.config.n_head}H/{self.config.n_embd}D"
+            )
             print(f"Params: {self.model.count_parameters():,}")
             print(f"Device: {self.model.device_info()}")
             print(f"History: {len(self.history)} messages")
@@ -142,8 +148,7 @@ class TerminalChat:
         elif action == "/save":
             path = parts[1] if len(parts) > 1 else "membra_chat.txt"
             with open(path, "w") as f:
-                for msg in self.history:
-                    f.write(msg + "\n")
+                f.writelines(msg + "\n" for msg in self.history)
             print(f"Saved to {path}")
 
         elif action == "/validate":

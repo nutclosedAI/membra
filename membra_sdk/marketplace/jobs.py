@@ -10,27 +10,26 @@ Revenue Source 1: Build Bounty Marketplace
 - Validators confirm delivery
 - Yield is released
 """
-import hashlib
+
 import json
 import os
 import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
 
 
 class JobStatus(Enum):
-    OPEN = "open"               # Posted, waiting for builder
-    CLAIMED = "claimed"         # Builder assigned
-    BUILDING = "building"       # Agent working on it
-    DELIVERED = "delivered"     # Artifact submitted, tests running
-    TESTED = "tested"           # Tests passed
-    APPROVED = "approved"       # Buyer approved delivery
-    PAID = "paid"               # Payment settled
-    FINALIZED = "finalized"     # Validators confirmed receipt, yield distributed
-    DISPUTED = "disputed"       # Buyer/builder disagreement
-    CANCELLED = "cancelled"     # Job cancelled, escrow refunded
+    OPEN = "open"  # Posted, waiting for builder
+    CLAIMED = "claimed"  # Builder assigned
+    BUILDING = "building"  # Agent working on it
+    DELIVERED = "delivered"  # Artifact submitted, tests running
+    TESTED = "tested"  # Tests passed
+    APPROVED = "approved"  # Buyer approved delivery
+    PAID = "paid"  # Payment settled
+    FINALIZED = "finalized"  # Validators confirmed receipt, yield distributed
+    DISPUTED = "disputed"  # Buyer/builder disagreement
+    CANCELLED = "cancelled"  # Job cancelled, escrow refunded
 
 
 @dataclass
@@ -38,23 +37,23 @@ class BuildJob:
     job_id: str
     title: str
     description: str
-    requirements: List[str]
-    deliverables: List[str]
+    requirements: list[str]
+    deliverables: list[str]
     budget_usd: float
     buyer_id: str
-    builder_id: Optional[str] = None
-    artifact_hash: Optional[str] = None
-    artifact_path: Optional[str] = None
-    test_result: Optional[Dict] = None
-    payment_receipt: Optional[Dict] = None
+    builder_id: str | None = None
+    artifact_hash: str | None = None
+    artifact_path: str | None = None
+    test_result: dict | None = None
+    payment_receipt: dict | None = None
     status: JobStatus = JobStatus.OPEN
     created_at: float = field(default_factory=time.time)
-    delivered_at: Optional[float] = None
-    approved_at: Optional[float] = None
-    finalized_at: Optional[float] = None
-    validator_votes: List[Dict] = field(default_factory=list)
+    delivered_at: float | None = None
+    approved_at: float | None = None
+    finalized_at: float | None = None
+    validator_votes: list[dict] = field(default_factory=list)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "job_id": self.job_id,
             "title": self.title,
@@ -76,13 +75,20 @@ class BuildJob:
 class JobBoard:
     """Marketplace where buyers post build jobs and agents claim them."""
 
-    def __init__(self, storage_path: str = None):
+    def __init__(self, storage_path: str | None = None):
         self.storage_path = storage_path or "/tmp/membra_jobs.jsonl"
-        self.jobs: Dict[str, BuildJob] = {}
+        self.jobs: dict[str, BuildJob] = {}
         self._load()
 
-    def post_job(self, title: str, description: str, requirements: List[str],
-                 deliverables: List[str], budget_usd: float, buyer_id: str) -> BuildJob:
+    def post_job(
+        self,
+        title: str,
+        description: str,
+        requirements: list[str],
+        deliverables: list[str],
+        budget_usd: float,
+        buyer_id: str,
+    ) -> BuildJob:
         """Buyer posts a new build job."""
         job = BuildJob(
             job_id=f"job-{uuid.uuid4().hex[:12]}",
@@ -97,7 +103,7 @@ class JobBoard:
         self._persist()
         return job
 
-    def claim_job(self, job_id: str, builder_id: str) -> Optional[BuildJob]:
+    def claim_job(self, job_id: str, builder_id: str) -> BuildJob | None:
         """Builder claims an open job."""
         job = self.jobs.get(job_id)
         if not job or job.status != JobStatus.OPEN:
@@ -107,7 +113,9 @@ class JobBoard:
         self._persist()
         return job
 
-    def submit_artifact(self, job_id: str, artifact_path: str, artifact_hash: str) -> Optional[BuildJob]:
+    def submit_artifact(
+        self, job_id: str, artifact_path: str, artifact_hash: str
+    ) -> BuildJob | None:
         """Builder submits completed artifact."""
         job = self.jobs.get(job_id)
         if not job or job.status not in (JobStatus.CLAIMED, JobStatus.BUILDING):
@@ -119,17 +127,19 @@ class JobBoard:
         self._persist()
         return job
 
-    def submit_tests(self, job_id: str, test_result: Dict) -> Optional[BuildJob]:
+    def submit_tests(self, job_id: str, test_result: dict) -> BuildJob | None:
         """Validator submits test results for the artifact."""
         job = self.jobs.get(job_id)
         if not job or job.status != JobStatus.DELIVERED:
             return None
         job.test_result = test_result
-        job.status = JobStatus.TESTED if test_result.get("passed") else JobStatus.DELIVERED
+        job.status = (
+            JobStatus.TESTED if test_result.get("passed") else JobStatus.DELIVERED
+        )
         self._persist()
         return job
 
-    def buyer_approve(self, job_id: str) -> Optional[BuildJob]:
+    def buyer_approve(self, job_id: str) -> BuildJob | None:
         """Buyer approves delivery. Triggers payment release."""
         job = self.jobs.get(job_id)
         if not job or job.status != JobStatus.TESTED:
@@ -139,7 +149,7 @@ class JobBoard:
         self._persist()
         return job
 
-    def submit_payment_receipt(self, job_id: str, receipt: Dict) -> Optional[BuildJob]:
+    def submit_payment_receipt(self, job_id: str, receipt: dict) -> BuildJob | None:
         """Payment processor submits settlement receipt."""
         job = self.jobs.get(job_id)
         if not job or job.status != JobStatus.APPROVED:
@@ -149,7 +159,9 @@ class JobBoard:
         self._persist()
         return job
 
-    def validator_vote(self, job_id: str, validator_id: str, vote: Dict) -> Optional[BuildJob]:
+    def validator_vote(
+        self, job_id: str, validator_id: str, vote: dict
+    ) -> BuildJob | None:
         """Validator votes on payment receipt and delivery."""
         job = self.jobs.get(job_id)
         if not job or job.status != JobStatus.PAID:
@@ -170,19 +182,18 @@ class JobBoard:
         valid_votes = sum(1 for v in job.validator_votes if v.get("receipt_valid"))
         return valid_votes * 3 >= len(job.validator_votes) * 2
 
-    def list_open(self) -> List[BuildJob]:
+    def list_open(self) -> list[BuildJob]:
         return [j for j in self.jobs.values() if j.status == JobStatus.OPEN]
 
-    def list_finalized(self) -> List[BuildJob]:
+    def list_finalized(self) -> list[BuildJob]:
         return [j for j in self.jobs.values() if j.status == JobStatus.FINALIZED]
 
-    def get_job(self, job_id: str) -> Optional[BuildJob]:
+    def get_job(self, job_id: str) -> BuildJob | None:
         return self.jobs.get(job_id)
 
     def _persist(self):
         with open(self.storage_path, "a") as f:
-            for job in self.jobs.values():
-                f.write(json.dumps(job.to_dict()) + "\n")
+            f.writelines(json.dumps(job.to_dict()) + "\n" for job in self.jobs.values())
 
     def _load(self):
         if not os.path.exists(self.storage_path):
@@ -194,5 +205,5 @@ class JobBoard:
                     job_id = data.get("job_id")
                     if job_id:
                         self.jobs[job_id] = BuildJob(**data)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 — tolerate corrupt job file
             pass

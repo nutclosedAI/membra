@@ -10,21 +10,20 @@ Not a wrapper around Hugging Face or Ollama. Every layer is written explicitly:
 
 Designed for small models (~1-10M params) that run on a MacBook CPU/MPS.
 """
-import json
+
 import math
 import os
 from dataclasses import dataclass
-from typing import List, Optional
 
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.nn import functional as F
 
 
 @dataclass
 class GPTConfig:
-    block_size: int = 512      # max context length
-    vocab_size: int = 256      # byte-level (0-255)
+    block_size: int = 512  # max context length
+    vocab_size: int = 256  # byte-level (0-255)
     n_layer: int = 4
     n_head: int = 4
     n_embd: int = 256
@@ -36,8 +35,11 @@ class GPTConfig:
         return (
             self.vocab_size * self.n_embd  # token embedding
             + self.block_size * self.n_embd  # position embedding
-            + self.n_layer * (
-                4 * self.n_embd * self.n_embd  # 4 weight matrices per layer (attn q,k,v,o)
+            + self.n_layer
+            * (
+                4
+                * self.n_embd
+                * self.n_embd  # 4 weight matrices per layer (attn q,k,v,o)
                 + 2 * 4 * self.n_embd * self.n_embd  # MLP up + down (4x expansion)
                 + 4 * self.n_embd  # 2 layer norms
             )
@@ -158,7 +160,9 @@ class LLMGPT(nn.Module):
         # Special scaled init for residual projections (GPT-2 style)
         for pn, p in self.named_parameters():
             if pn.endswith("c_proj.weight"):
-                torch.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer))
+                torch.nn.init.normal_(
+                    p, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer)
+                )
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
@@ -168,10 +172,12 @@ class LLMGPT(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx: torch.Tensor, targets: Optional[torch.Tensor] = None):
+    def forward(self, idx: torch.Tensor, targets: torch.Tensor | None = None):
         device = idx.device
-        b, t = idx.size()
-        assert t <= self.config.block_size, f"Sequence length {t} exceeds block size {self.config.block_size}"
+        _b, t = idx.size()
+        assert (
+            t <= self.config.block_size
+        ), f"Sequence length {t} exceeds block size {self.config.block_size}"
 
         # Token + position embeddings
         tok_emb = self.transformer.wte(idx)  # (b, t, n_embd)
@@ -198,14 +204,18 @@ class LLMGPT(nn.Module):
         idx: torch.Tensor,
         max_new_tokens: int = 256,
         temperature: float = 1.0,
-        top_k: Optional[int] = None,
-        stop_tokens: Optional[List[int]] = None,
+        top_k: int | None = None,
+        stop_tokens: list[int] | None = None,
     ) -> torch.Tensor:
         """Generate tokens with temperature and top-k sampling."""
         self.eval()
         for _ in range(max_new_tokens):
             # Crop to block size
-            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size :]
+            idx_cond = (
+                idx
+                if idx.size(1) <= self.config.block_size
+                else idx[:, -self.config.block_size :]
+            )
             logits, _ = self(idx_cond)
             logits = logits[:, -1, :] / temperature
 
@@ -229,13 +239,17 @@ class LLMGPT(nn.Module):
         idx: torch.Tensor,
         max_new_tokens: int = 256,
         temperature: float = 1.0,
-        top_k: Optional[int] = None,
-        stop_tokens: Optional[List[int]] = None,
+        top_k: int | None = None,
+        stop_tokens: list[int] | None = None,
     ):
         """Yields tokens one at a time for streaming terminal output."""
         self.eval()
         for _ in range(max_new_tokens):
-            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size :]
+            idx_cond = (
+                idx
+                if idx.size(1) <= self.config.block_size
+                else idx[:, -self.config.block_size :]
+            )
             logits, _ = self(idx_cond)
             logits = logits[:, -1, :] / temperature
 

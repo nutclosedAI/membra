@@ -10,19 +10,20 @@ Funds are released only after:
 4. Payment settles
 5. Validators confirm receipt
 """
+
 import json
 import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import ClassVar
 
 
 class EscrowState(Enum):
-    HELD = "held"           # Funds deposited, waiting for delivery
-    RELEASED = "released"   # Funds released to builder after approval
-    REFUNDED = "refunded"   # Funds returned to buyer (cancelled/disputed)
-    FROZEN = "frozen"       # Funds frozen during dispute resolution
+    HELD = "held"  # Funds deposited, waiting for delivery
+    RELEASED = "released"  # Funds released to builder after approval
+    REFUNDED = "refunded"  # Funds returned to buyer (cancelled/disputed)
+    FROZEN = "frozen"  # Funds frozen during dispute resolution
 
 
 @dataclass
@@ -30,34 +31,40 @@ class Escrow:
     escrow_id: str
     job_id: str
     buyer_id: str
-    builder_id: Optional[str]
+    builder_id: str | None
     amount_usd: float
     state: EscrowState = EscrowState.HELD
-    deposits: List[Dict] = field(default_factory=list)
-    releases: List[Dict] = field(default_factory=list)
+    deposits: list[dict] = field(default_factory=list)
+    releases: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
-    released_at: Optional[float] = None
+    released_at: float | None = None
 
 
 class EscrowManager:
     """Manages escrow for build bounty marketplace."""
 
     # Distribution policy: where yield goes after release
-    DISTRIBUTION_POLICY = {
-        "infrastructure_cost": 0.15,   # 15% — compute, API, storage
-        "validator_reward": 0.20,      # 20% — validators who confirmed
-        "builder_reward": 0.45,        # 45% — agent that built artifact
-        "treasury_reserve": 0.10,      # 10% — protocol treasury
-        "risk_legal_reserve": 0.10,    # 10% — insurance, legal, disputes
+    DISTRIBUTION_POLICY: ClassVar[dict[str, float]] = {
+        "infrastructure_cost": 0.15,  # 15% — compute, API, storage
+        "validator_reward": 0.20,  # 20% — validators who confirmed
+        "builder_reward": 0.45,  # 45% — agent that built artifact
+        "treasury_reserve": 0.10,  # 10% — protocol treasury
+        "risk_legal_reserve": 0.10,  # 10% — insurance, legal, disputes
     }
 
-    def __init__(self, storage_path: str = None):
+    def __init__(self, storage_path: str | None = None):
         self.storage_path = storage_path or "/tmp/membra_escrow.json"
-        self.escrows: Dict[str, Escrow] = {}
+        self.escrows: dict[str, Escrow] = {}
         self._load()
 
-    def deposit(self, job_id: str, buyer_id: str, builder_id: str,
-                amount_usd: float, payment_method: str = "stripe") -> Escrow:
+    def deposit(
+        self,
+        job_id: str,
+        buyer_id: str,
+        builder_id: str,
+        amount_usd: float,
+        payment_method: str = "stripe",
+    ) -> Escrow:
         """Buyer deposits funds into escrow."""
         escrow = Escrow(
             escrow_id=f"esc-{job_id}",
@@ -66,17 +73,19 @@ class EscrowManager:
             builder_id=builder_id,
             amount_usd=amount_usd,
         )
-        escrow.deposits.append({
-            "amount": amount_usd,
-            "method": payment_method,
-            "timestamp": time.time(),
-            "status": "confirmed",
-        })
+        escrow.deposits.append(
+            {
+                "amount": amount_usd,
+                "method": payment_method,
+                "timestamp": time.time(),
+                "status": "confirmed",
+            }
+        )
         self.escrows[escrow.escrow_id] = escrow
         self._persist()
         return escrow
 
-    def release(self, escrow_id: str, receipt: Dict) -> Optional[Dict]:
+    def release(self, escrow_id: str, receipt: dict) -> dict | None:
         """Release escrow funds after all conditions met."""
         escrow = self.escrows.get(escrow_id)
         if not escrow or escrow.state != EscrowState.HELD:
@@ -97,21 +106,23 @@ class EscrowManager:
             "receipt": receipt,
         }
 
-    def refund(self, escrow_id: str, reason: str) -> Optional[Escrow]:
+    def refund(self, escrow_id: str, reason: str) -> Escrow | None:
         """Refund buyer (cancelled job or dispute resolution)."""
         escrow = self.escrows.get(escrow_id)
         if not escrow or escrow.state != EscrowState.HELD:
             return None
         escrow.state = EscrowState.REFUNDED
-        escrow.releases.append({
-            "type": "refund",
-            "reason": reason,
-            "timestamp": time.time(),
-        })
+        escrow.releases.append(
+            {
+                "type": "refund",
+                "reason": reason,
+                "timestamp": time.time(),
+            }
+        )
         self._persist()
         return escrow
 
-    def freeze(self, escrow_id: str, reason: str) -> Optional[Escrow]:
+    def freeze(self, escrow_id: str, reason: str) -> Escrow | None:
         """Freeze escrow during dispute."""
         escrow = self.escrows.get(escrow_id)
         if not escrow or escrow.state != EscrowState.HELD:
@@ -120,18 +131,28 @@ class EscrowManager:
         self._persist()
         return escrow
 
-    def _calculate_distribution(self, amount: float) -> Dict:
+    def _calculate_distribution(self, amount: float) -> dict:
         """Split revenue according to published policy."""
         return {
-            "infrastructure_cost": round(amount * self.DISTRIBUTION_POLICY["infrastructure_cost"], 2),
-            "validator_reward": round(amount * self.DISTRIBUTION_POLICY["validator_reward"], 2),
-            "builder_reward": round(amount * self.DISTRIBUTION_POLICY["builder_reward"], 2),
-            "treasury_reserve": round(amount * self.DISTRIBUTION_POLICY["treasury_reserve"], 2),
-            "risk_legal_reserve": round(amount * self.DISTRIBUTION_POLICY["risk_legal_reserve"], 2),
+            "infrastructure_cost": round(
+                amount * self.DISTRIBUTION_POLICY["infrastructure_cost"], 2
+            ),
+            "validator_reward": round(
+                amount * self.DISTRIBUTION_POLICY["validator_reward"], 2
+            ),
+            "builder_reward": round(
+                amount * self.DISTRIBUTION_POLICY["builder_reward"], 2
+            ),
+            "treasury_reserve": round(
+                amount * self.DISTRIBUTION_POLICY["treasury_reserve"], 2
+            ),
+            "risk_legal_reserve": round(
+                amount * self.DISTRIBUTION_POLICY["risk_legal_reserve"], 2
+            ),
             "total": round(amount, 2),
         }
 
-    def get_escrow(self, job_id: str) -> Optional[Escrow]:
+    def get_escrow(self, job_id: str) -> Escrow | None:
         return self.escrows.get(f"esc-{job_id}")
 
     def _persist(self):
@@ -171,5 +192,5 @@ class EscrowManager:
                     created_at=edata["created_at"],
                     released_at=edata.get("released_at"),
                 )
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 — tolerate corrupt escrow record
             pass

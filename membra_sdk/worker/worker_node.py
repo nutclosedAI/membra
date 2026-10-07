@@ -13,23 +13,23 @@ Honest limitations:
   - Network latency between Macs is real. Best for batch jobs, not real-time chat.
   - Each worker needs its own Ollama model loaded (memory duplication).
 """
+
 import hashlib
-import json
 import os
 import subprocess
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
-from membra_sdk.scheduler.job_queue import JobQueue, TaskSplit, TaskStatus
+from membra_sdk.scheduler.job_queue import JobQueue, TaskSplit
 
 
 @dataclass
 class WorkerCapabilities:
     """What this worker can do."""
+
     worker_id: str
     hostname: str
-    models: List[str]            # e.g. ["llama3.1:8b", "llama3.1:70b"]
+    models: list[str]  # e.g. ["llama3.1:8b", "llama3.1:70b"]
     memory_gb: float
     cpu_cores: int
     has_gpu: bool = False
@@ -41,12 +41,17 @@ class WorkerCapabilities:
 class WorkerNode:
     """A MEMBRA worker that runs on a local Mac."""
 
-    def __init__(self, worker_id: str = None, coordinator_url: str = None, queue: JobQueue = None):
+    def __init__(
+        self,
+        worker_id: str | None = None,
+        coordinator_url: str | None = None,
+        queue: JobQueue = None,
+    ):
         self.worker_id = worker_id or f"worker-{os.uname().nodename}-{int(time.time())}"
         self.coordinator_url = coordinator_url or "http://localhost:5000"
         self.queue = queue or JobQueue()  # Share queue with coordinator if provided
         self.capabilities = self._detect_capabilities()
-        self.current_task: Optional[TaskSplit] = None
+        self.current_task: TaskSplit | None = None
         self.stats = {
             "tasks_claimed": 0,
             "tasks_completed": 0,
@@ -65,6 +70,7 @@ class WorkerNode:
                 ["ollama", "list"],
                 capture_output=True,
                 text=True,
+                check=False,
                 timeout=10,
             )
             if result.returncode == 0:
@@ -74,7 +80,7 @@ class WorkerNode:
                         models.append(parts[0])
         except FileNotFoundError:
             pass  # Ollama not installed
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 — best-effort capability probe
             pass
 
         # Memory
@@ -84,12 +90,13 @@ class WorkerNode:
                 ["sysctl", "-n", "hw.memsize"],
                 capture_output=True,
                 text=True,
+                check=False,
                 timeout=5,
             )
             if result.returncode == 0:
                 bytes_mem = int(result.stdout.strip())
-                memory_gb = bytes_mem / (1024 ** 3)
-        except Exception:
+                memory_gb = bytes_mem / (1024**3)
+        except Exception:  # noqa: BLE001, S110 — best-effort capability probe
             pass
 
         # CPU cores
@@ -102,11 +109,12 @@ class WorkerNode:
                 ["system_profiler", "SPDisplaysDataType"],
                 capture_output=True,
                 text=True,
+                check=False,
                 timeout=5,
             )
             if result.returncode == 0 and "Metal" in result.stdout:
                 has_gpu = True
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 — best-effort capability probe
             pass
 
         return WorkerCapabilities(
@@ -134,7 +142,7 @@ class WorkerNode:
             "stats": self.stats,
         }
 
-    def claim_and_run(self, capability: str = None) -> Optional[dict]:
+    def claim_and_run(self, capability: str | None = None) -> dict | None:
         """Claim a task from the queue and execute it."""
         task = self.queue.claim_task(self.worker_id, capability)
         if not task:
@@ -183,7 +191,10 @@ class WorkerNode:
     def _run_prompt(self, payload: dict) -> dict:
         """Run an LLM prompt via Ollama or deterministic fallback."""
         prompt = payload.get("item", payload.get("prompt", ""))
-        model = payload.get("model", self.capabilities.models[0] if self.capabilities.models else "llama3.1:8b")
+        model = payload.get(
+            "model",
+            self.capabilities.models[0] if self.capabilities.models else "llama3.1:8b",
+        )
 
         # Try Ollama
         try:
@@ -191,6 +202,7 @@ class WorkerNode:
                 ["ollama", "run", model, prompt],
                 capture_output=True,
                 text=True,
+                check=False,
                 timeout=120,
             )
             if result.returncode == 0:
@@ -204,7 +216,7 @@ class WorkerNode:
             pass
         except subprocess.TimeoutExpired:
             return {"status": "timeout", "model": model}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"status": "error", "error": str(e)}
 
         # Fallback: deterministic hash-based response
@@ -231,7 +243,7 @@ class WorkerNode:
                 "hash": hashlib.sha256(content.encode()).hexdigest(),
                 "preview": content[:200],
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — network failure becomes False result
             return {"status": "error", "error": str(e)}
 
     def _run_artifact_gen(self, payload: dict) -> dict:

@@ -22,12 +22,12 @@ Format:
     "root_hash": "sha256:..."
   }
 """
+
 import hashlib
 import json
 import time
 import zipfile
 from pathlib import Path
-from typing import Dict, List
 
 
 class ProofBundle:
@@ -38,9 +38,16 @@ class ProofBundle:
     def __init__(self):
         self.data = {}
 
-    def build(self, chat: Dict, job: Dict, container: Dict,
-              artifacts: List[Dict], yield_report: Dict,
-              consensus: Dict, settlement: Dict = None) -> Dict:
+    def build(
+        self,
+        chat: dict,
+        job: dict,
+        container: dict,
+        artifacts: list[dict],
+        yield_report: dict,
+        consensus: dict,
+        settlement: dict | None = None,
+    ) -> dict:
         """Build a complete proof bundle."""
         settlement = settlement or {"status": "unsettled", "external_receipts": []}
 
@@ -61,7 +68,7 @@ class ProofBundle:
         self.data = bundle
         return bundle
 
-    def _compute_root_hash(self, bundle: Dict) -> str:
+    def _compute_root_hash(self, bundle: dict) -> str:
         """Compute a deterministic root hash of the entire bundle."""
         # Serialize deterministically
         canonical = json.dumps(bundle, sort_keys=True, ensure_ascii=False)
@@ -95,13 +102,15 @@ class ProofBundle:
                     zf.write(artifact_path, artifact["path"])
 
             # Add job spec
-            job_json_path = job_dir / f"{self.data.get('job', {}).get('job_id', 'job')}.json"
+            job_json_path = (
+                job_dir / f"{self.data.get('job', {}).get('job_id', 'job')}.json"
+            )
             if job_json_path.exists():
                 zf.write(job_json_path, "job.json")
 
         return str(output_path)
 
-    def verify(self, bundle: Dict = None) -> Dict:
+    def verify(self, bundle: dict | None = None) -> dict:
         """Verify that a proof bundle's root hash matches its contents."""
         bundle = bundle or self.data
         if not bundle:

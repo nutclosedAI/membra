@@ -4,11 +4,8 @@ Uses a deque with batch draining for 1M+ ops/sec capacity on M5 Pro.
 This is NOT a blockchain. It is an internal buffer that batches
 operations before consensus and settlement.
 """
-import hashlib
-import json
-import time
+
 from collections import deque
-from typing import Dict, List
 
 
 class InternalLedger:
@@ -28,11 +25,11 @@ class InternalLedger:
         self.processed = 0
         self.batches_formed = 0
 
-    def submit(self, op: Dict):
+    def submit(self, op: dict):
         """Submit an operation. O(1) amortized."""
         self.pending.append(op)
 
-    def drain_batch(self, size: int) -> List[Dict]:
+    def drain_batch(self, size: int) -> list[dict]:
         """Drain up to `size` operations. Returns list."""
         batch = []
         for _ in range(min(size, len(self.pending))):
@@ -45,7 +42,7 @@ class InternalLedger:
     def pending_count(self) -> int:
         return len(self.pending)
 
-    def stats(self) -> Dict:
+    def stats(self) -> dict:
         return {
             "pending": len(self.pending),
             "processed": self.processed,

@@ -11,50 +11,47 @@ Commands:
     membra consensus          # Run 3-agent consensus demo
     membra version            # Show SDK version
 """
+
 import asyncio
 import hashlib
 import json
 import os
 import sys
 import time
-from typing import Optional
+from pathlib import Path
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from membra_sdk.brain_server.server import BrainServer
+from membra_sdk.config import MembraConfig
+from membra_sdk.consensus.poy import ProofOfYieldConsensus
+from membra_sdk.core.ledger import InternalLedger
 from membra_sdk.core.node import MembraNode
 from membra_sdk.core.yield_engine import YieldEngine
-from membra_sdk.core.ledger import InternalLedger
-from membra_sdk.core.artifacts import ArtifactTracker
-from membra_sdk.consensus.poy import ProofOfYieldConsensus
-from membra_sdk.profit_loop import MembraProfitLoop
-from membra_sdk.config import MembraConfig
-from membra_sdk.personal_chain.chain import PersonalChain, PrivacyLabel
-from membra_sdk.personal_chain.events import EventType
-from membra_sdk.brain_server.server import BrainServer
-from membra_sdk.worker.worker_client import WorkerClient
 from membra_sdk.job.chat_compiler import ChatCompiler
-from membra_sdk.job.job_spec import JobSpec
-from membra_sdk.job.artifact_hasher import ArtifactHasher
-from membra_sdk.job.yield_meter import YieldMeter
-from membra_sdk.job.validators import ValidatorSet
 from membra_sdk.job.consensus import ConsensusEngine
+from membra_sdk.job.job_spec import JobSpec
 from membra_sdk.job.proof_bundle import ProofBundle
 from membra_sdk.job.settlement import SettlementAdapter
+from membra_sdk.job.validators import ValidatorSet
+from membra_sdk.job.yield_meter import YieldMeter
 from membra_sdk.llm.gpt import LLMGPT, GPTConfig
-from membra_sdk.llm.tokenizer import ByteTokenizer
+from membra_sdk.llm.solana_bridge import SolanaValidatorBridge
 from membra_sdk.llm.terminal_chat import TerminalChat
 from membra_sdk.llm.validator import ValidatorEngine
-from membra_sdk.llm.solana_bridge import SolanaValidatorBridge
+from membra_sdk.personal_chain.chain import PersonalChain, PrivacyLabel
+from membra_sdk.personal_chain.events import EventType
+from membra_sdk.profit_loop import MembraProfitLoop
 from membra_sdk.token_gate import (
     TokenLaunchState,
     can_begin_token_and_liquidity,
-    can_stake_treasury_sol,
     get_missing_conditions,
     get_state_summary,
 )
+from membra_sdk.worker.worker_client import WorkerClient
 
 app = typer.Typer(name="membra", help="Membra SDK — Local Proof-of-Yield Validator Kit")
 console = Console()
@@ -62,21 +59,33 @@ console = Console()
 
 @app.command()
 def start(
-    node_id: Optional[str] = typer.Option(None, "--node-id", "-n", help="Validator node ID"),
-    autonomous: bool = typer.Option(False, "--autonomous", "-a", help="Autonomous file mining mode"),
-    enable_defi: bool = typer.Option(False, "--enable-defi", help="Enable DeFi operator (devnet-only)"),
+    node_id: str | None = typer.Option(
+        None, "--node-id", "-n", help="Validator node ID"
+    ),
+    autonomous: bool = typer.Option(
+        False, "--autonomous", "-a", help="Autonomous file mining mode"
+    ),
+    enable_defi: bool = typer.Option(
+        False, "--enable-defi", help="Enable DeFi operator (devnet-only)"
+    ),
 ):
     """Start a Membra validator node."""
-    console.print(Panel.fit(
-        "[bold green]MEMBRA SDK[/bold green] — Local Proof-of-Yield Validator Kit\n"
-        "M5 Pro Mac | File Corpus Mining | LLM Consensus | Solana Anchor",
-        border_style="green",
-    ))
-    console.print("[yellow]⚠️  No guaranteed income. See docs/PROOF_OF_YIELD.md[/yellow]")
+    console.print(
+        Panel.fit(
+            "[bold green]MEMBRA SDK[/bold green] — Local Proof-of-Yield Validator Kit\n"
+            "M5 Pro Mac | File Corpus Mining | LLM Consensus | Solana Anchor",
+            border_style="green",
+        )
+    )
+    console.print(
+        "[yellow]⚠️  No guaranteed income. See docs/PROOF_OF_YIELD.md[/yellow]"
+    )
     console.print()
 
     if enable_defi:
-        console.print("[red]⚠️  DeFi enabled. This is experimental and testnet-only.[/red]")
+        console.print(
+            "[red]⚠️  DeFi enabled. This is experimental and testnet-only.[/red]"
+        )
 
     node = MembraNode(node_id=node_id)
     try:
@@ -84,7 +93,9 @@ def start(
     except KeyboardInterrupt:
         console.print("\n[bold red]Node stopped.[/bold red]")
         status = node.get_status()
-        console.print(f"  Ops: {status['ops_processed']} | Finalized: {status['batches_finalized']} | Yield: {status['yield_estimated']:.4f}")
+        console.print(
+            f"  Ops: {status['ops_processed']} | Finalized: {status['batches_finalized']} | Yield: {status['yield_estimated']:.4f}"
+        )
 
 
 @app.command()
@@ -92,11 +103,15 @@ def benchmark(
     ops: int = typer.Option(100000, "--ops", help="Number of operations to benchmark"),
 ):
     """Benchmark internal ledger throughput."""
-    console.print(Panel.fit(
-        "[bold blue]MEMBRA BENCHMARK[/bold blue] — Internal Ledger Throughput",
-        border_style="blue",
-    ))
-    console.print("[dim]Note: This measures local buffer performance, not Solana TPS.[/dim]")
+    console.print(
+        Panel.fit(
+            "[bold blue]MEMBRA BENCHMARK[/bold blue] — Internal Ledger Throughput",
+            border_style="blue",
+        )
+    )
+    console.print(
+        "[dim]Note: This measures local buffer performance, not Solana TPS.[/dim]"
+    )
     console.print()
 
     ledger = InternalLedger()
@@ -141,10 +156,12 @@ def mine_files(
     max_files: int = typer.Option(50, "--max", help="Max files to analyze"),
 ):
     """Scan files and generate yield estimates."""
-    console.print(Panel.fit(
-        "[bold yellow]MEMBRA FILE MINER[/bold yellow] — Corpus Analysis",
-        border_style="yellow",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold yellow]MEMBRA FILE MINER[/bold yellow] — Corpus Analysis",
+            border_style="yellow",
+        )
+    )
     console.print()
 
     if not os.path.exists(path):
@@ -166,7 +183,7 @@ def mine_files(
                 y = engine.estimate(fpath, content)
                 results.append((fname, y))
                 count += 1
-            except Exception:
+            except Exception:  # noqa: BLE001, S110 — skip unreadable files during scan
                 pass
 
     table = Table(title=f"Top Files by Yield Estimate (scanned {count})")
@@ -178,7 +195,9 @@ def mine_files(
 
     console.print(table)
     console.print()
-    console.print("[dim]Yield estimates are scenario projections, not guaranteed returns.[/dim]")
+    console.print(
+        "[dim]Yield estimates are scenario projections, not guaranteed returns.[/dim]"
+    )
 
 
 @app.command()
@@ -186,10 +205,12 @@ def validate_prompt(
     prompt: str = typer.Argument(..., help="Prompt to validate via LLM"),
 ):
     """Run LLM inference and hash the output (deterministic fallback if no API key)."""
-    console.print(Panel.fit(
-        "[bold magenta]MEMBRA LLM VALIDATOR[/bold magenta]",
-        border_style="magenta",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold magenta]MEMBRA LLM VALIDATOR[/bold magenta]",
+            border_style="magenta",
+        )
+    )
     console.print()
 
     consensus = ProofOfYieldConsensus(agent_id="cli-validator")
@@ -205,19 +226,23 @@ def validate_prompt(
 
 @app.command()
 def anchor(
-    memo: str = typer.Option(..., "--memo", help="Memo text to anchor to Solana devnet"),
-    wallet: Optional[str] = typer.Option(None, "--wallet", help="Solana wallet JSON path"),
+    memo: str = typer.Option(
+        ..., "--memo", help="Memo text to anchor to Solana devnet"
+    ),
+    wallet: str | None = typer.Option(None, "--wallet", help="Solana wallet JSON path"),
 ):
     """Anchor a memo to Solana devnet (requires devnet SOL)."""
-    console.print(Panel.fit(
-        "[bold cyan]MEMBRA SOLANA ANCHOR[/bold cyan] — Devnet Settlement",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold cyan]MEMBRA SOLANA ANCHOR[/bold cyan] — Devnet Settlement",
+            border_style="cyan",
+        )
+    )
     console.print()
 
     try:
         sys.path.insert(0, "/Users/alep/Downloads/mac_compute_node")
-        from real_chain import RealSolanaClient, ChainConfig
+        from real_chain import ChainConfig, RealSolanaClient
 
         config = ChainConfig()
         client = RealSolanaClient(config)
@@ -233,12 +258,14 @@ def anchor(
 
         tx_sig = client.submit_memo(memo)
         console.print(f"[green]✅ Transaction: {tx_sig}[/green]")
-        console.print(f"Explorer: https://explorer.solana.com/tx/{tx_sig}?cluster=devnet")
+        console.print(
+            f"Explorer: https://explorer.solana.com/tx/{tx_sig}?cluster=devnet"
+        )
 
     except ImportError:
         console.print("[red]Solana dependencies not available. Install with:[/red]")
         console.print("  pip install solana solders spl-token")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — user-facing CLI error boundary
         console.print(f"[red]Error: {e}[/red]")
 
 
@@ -259,15 +286,23 @@ def consensus():
 @app.command()
 def log_event(
     user: str = typer.Option("demo-user", "--user", "-u", help="User ID"),
-    event_type: str = typer.Argument(..., help="Event type (prompt, upload, build, artifact, etc.)"),
+    event_type: str = typer.Argument(
+        ..., help="Event type (prompt, upload, build, artifact, etc.)"
+    ),
     data: str = typer.Argument(..., help="Event data (JSON string)"),
-    privacy: str = typer.Option("private", "--privacy", help="Privacy label: private, protected, public, anonymous"),
+    privacy: str = typer.Option(
+        "private",
+        "--privacy",
+        help="Privacy label: private, protected, public, anonymous",
+    ),
 ):
     """Log a consented event to the user's personal chain."""
-    console.print(Panel.fit(
-        "[bold blue]MEMBRA PERSONAL CHAIN[/bold blue] — Log Event",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]MEMBRA PERSONAL CHAIN[/bold blue] — Log Event",
+            border_style="blue",
+        )
+    )
 
     chain = PersonalChain(user)
     try:
@@ -286,14 +321,18 @@ def log_event(
         console.print(f"[red]Unknown event type: {event_type}[/red]")
         raise typer.Exit(1)
 
-    event = chain.log_event(event_type_enum, event_data, privacy=privacy_label, consent_override=True)
+    event = chain.log_event(
+        event_type_enum, event_data, privacy=privacy_label, consent_override=True
+    )
     if event:
         console.print(f"Event logged: [cyan]{event.event_id}[/cyan]")
         console.print(f"Sequence: {event.sequence}")
         console.print(f"Hash: {event.data_hash[:16]}...")
         console.print(f"Privacy: {event.privacy.value}")
     else:
-        console.print("[yellow]Event not logged (consent policy blocks this type)[/yellow]")
+        console.print(
+            "[yellow]Event not logged (consent policy blocks this type)[/yellow]"
+        )
 
 
 @app.command()
@@ -301,10 +340,12 @@ def chain_summary(
     user: str = typer.Option("demo-user", "--user", "-u", help="User ID"),
 ):
     """Show user's personal chain summary."""
-    console.print(Panel.fit(
-        "[bold blue]MEMBRA PERSONAL CHAIN[/bold blue] — Summary",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]MEMBRA PERSONAL CHAIN[/bold blue] — Summary",
+            border_style="blue",
+        )
+    )
 
     chain = PersonalChain(user)
     summary = chain.get_chain_summary()
@@ -316,7 +357,9 @@ def chain_summary(
     table.add_row("Total Events", str(summary["events"]))
     table.add_row("Latest Sequence", str(summary["latest_sequence"]))
     table.add_row("Latest Hash", summary["latest_hash"][:16] + "...")
-    table.add_row("Integrity", "VERIFIED" if chain.verify_chain_integrity() else "BROKEN")
+    table.add_row(
+        "Integrity", "VERIFIED" if chain.verify_chain_integrity() else "BROKEN"
+    )
 
     for label, count in summary["privacy_breakdown"].items():
         table.add_row(f"Privacy: {label}", str(count))
@@ -327,13 +370,17 @@ def chain_summary(
 @app.command()
 def export_chain(
     user: str = typer.Option("demo-user", "--user", "-u", help="User ID"),
-    public_only: bool = typer.Option(False, "--public-only", help="Export only public proofs"),
+    public_only: bool = typer.Option(
+        False, "--public-only", help="Export only public proofs"
+    ),
 ):
     """Export user's personal chain archive."""
-    console.print(Panel.fit(
-        "[bold blue]MEMBRA PERSONAL CHAIN[/bold blue] — Export",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]MEMBRA PERSONAL CHAIN[/bold blue] — Export",
+            border_style="blue",
+        )
+    )
 
     chain = PersonalChain(user)
     if public_only:
@@ -352,10 +399,12 @@ def consent_status(
     user: str = typer.Option("demo-user", "--user", "-u", help="User ID"),
 ):
     """Show user's consent policy and approved capture types."""
-    console.print(Panel.fit(
-        "[bold yellow]MEMBRA CONSENT[/bold yellow] — Status",
-        border_style="yellow",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold yellow]MEMBRA CONSENT[/bold yellow] — Status",
+            border_style="yellow",
+        )
+    )
 
     chain = PersonalChain(user)
     policy = chain.consent_policy
@@ -363,12 +412,20 @@ def consent_status(
     table = Table(title="Consent Policy")
     table.add_column("Setting", style="cyan")
     table.add_column("Value", style="white")
-    table.add_row("Auto-capture prompts", str(policy.get("auto_capture_prompts", False)))
-    table.add_row("Auto-capture uploads", str(policy.get("auto_capture_uploads", False)))
+    table.add_row(
+        "Auto-capture prompts", str(policy.get("auto_capture_prompts", False))
+    )
+    table.add_row(
+        "Auto-capture uploads", str(policy.get("auto_capture_uploads", False))
+    )
     table.add_row("Auto-capture builds", str(policy.get("auto_capture_builds", True)))
     table.add_row("Default privacy", policy.get("default_privacy", "private"))
-    table.add_row("Public anchor allowed", str(policy.get("public_anchor_allowed", False)))
-    table.add_row("Monetization enabled", str(policy.get("monetization_enabled", False)))
+    table.add_row(
+        "Public anchor allowed", str(policy.get("public_anchor_allowed", False))
+    )
+    table.add_row(
+        "Monetization enabled", str(policy.get("monetization_enabled", False))
+    )
 
     console.print(table)
 
@@ -380,10 +437,12 @@ def post_job(
     buyer: str = typer.Option("anonymous", "--buyer", help="Buyer ID"),
 ):
     """Post a build job to the marketplace."""
-    console.print(Panel.fit(
-        "[bold green]MEMBRA MARKETPLACE[/bold green] — Post Job",
-        border_style="green",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold green]MEMBRA MARKETPLACE[/bold green] — Post Job",
+            border_style="green",
+        )
+    )
     loop = MembraProfitLoop()
     job = loop.post_job(
         title=title,
@@ -418,14 +477,22 @@ def list_jobs():
 @app.command()
 def profit_loop():
     """Run complete profit loop demo (buyer → builder → validators → payout)."""
-    console.print(Panel.fit(
-        "[bold green]MEMBRA PROFIT LOOP[/bold green] — Full Revenue Flow",
-        border_style="green",
-    ))
-    console.print("[dim]Running demo: deposit → build → test → pay → verify → distribute[/dim]")
+    console.print(
+        Panel.fit(
+            "[bold green]MEMBRA PROFIT LOOP[/bold green] — Full Revenue Flow",
+            border_style="green",
+        )
+    )
+    console.print(
+        "[dim]Running demo: deposit → build → test → pay → verify → distribute[/dim]"
+    )
     console.print()
     import subprocess
-    subprocess.run(["python3", "/Users/alep/Downloads/membra-sdk/examples/profit_loop_demo.py"])
+
+    subprocess.run(
+        ["python3", "/Users/alep/Downloads/membra-sdk/examples/profit_loop_demo.py"],
+        check=False,
+    )
 
 
 @app.command()
@@ -434,40 +501,57 @@ def mode():
     config = MembraConfig()
     status = config.get_status()
 
-    console.print(Panel.fit(
-        "[bold]MEMBRA MODE STATUS[/bold]",
-        border_style="yellow" if config.is_simulation() else "green",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold]MEMBRA MODE STATUS[/bold]",
+            border_style="yellow" if config.is_simulation() else "green",
+        )
+    )
 
     table = Table()
     table.add_column("Property", style="cyan")
     table.add_column("Value", style="white")
     table.add_row("Mode", status["mode"].upper())
-    table.add_row("Stripe Configured", "✅ Yes" if status["stripe_configured"] else "❌ No")
+    table.add_row(
+        "Stripe Configured", "✅ Yes" if status["stripe_configured"] else "❌ No"
+    )
     table.add_row("Groq Configured", "✅ Yes" if status["groq_configured"] else "❌ No")
     table.add_row("Solana RPC", status["solana_rpc"])
-    table.add_row("Safe for Development", "✅ Yes" if status["safe_for_development"] else "❌ Careful")
+    table.add_row(
+        "Safe for Development",
+        "✅ Yes" if status["safe_for_development"] else "❌ Careful",
+    )
 
     console.print(table)
 
     if config.is_simulation():
-        console.print("[yellow]⚠️  SIMULATION MODE: No real money moves. All payments are mocked.[/yellow]")
-        console.print("   Set MEMBRA_MODE=production and configure STRIPE_SECRET_KEY for real payments.")
+        console.print(
+            "[yellow]⚠️  SIMULATION MODE: No real money moves. All payments are mocked.[/yellow]"
+        )
+        console.print(
+            "   Set MEMBRA_MODE=production and configure STRIPE_SECRET_KEY for real payments."
+        )
     else:
         console.print("[green]✅ PRODUCTION MODE: Real payments enabled.[/green]")
-        console.print("   Ensure STRIPE_SECRET_KEY starts with sk_test_ (test) or sk_live_ (live).")
+        console.print(
+            "   Ensure STRIPE_SECRET_KEY starts with sk_test_ (test) or sk_live_ (live)."
+        )
 
 
 @app.command()
 def brain_start(
-    host: str = typer.Option("0.0.0.0", "--host", help="Host to bind (0.0.0.0 for LAN)"),
+    host: str = typer.Option(
+        "0.0.0.0", "--host", help="Host to bind (0.0.0.0 for LAN)"
+    ),
     port: int = typer.Option(7777, "--port", help="Port to listen on"),
 ):
     """Start the MEMBRA Brain Server (coordinator for distributed workers)."""
-    console.print(Panel.fit(
-        "[bold green]MEMBRA BRAIN SERVER[/bold green] — Distributed Worker Coordinator",
-        border_style="green",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold green]MEMBRA BRAIN SERVER[/bold green] — Distributed Worker Coordinator",
+            border_style="green",
+        )
+    )
     console.print(f"   Binding: {host}:{port}")
     console.print(f"   LAN URL: http://{host}:{port}")
     console.print()
@@ -481,17 +565,25 @@ def brain_start(
 
 @app.command()
 def worker_start(
-    brain: str = typer.Option("http://127.0.0.1:7777", "--brain", help="Brain server URL"),
+    brain: str = typer.Option(
+        "http://127.0.0.1:7777", "--brain", help="Brain server URL"
+    ),
     worker_id: str = typer.Option("", "--worker-id", help="Unique worker ID"),
     model: str = typer.Option("llama3.2:3b", "--model", help="Ollama model to use"),
-    role: str = typer.Option("general", "--role", help="Worker role (coder, reviewer, tester, docs)"),
-    poll_interval: float = typer.Option(2.0, "--poll-interval", help="Poll interval in seconds"),
+    role: str = typer.Option(
+        "general", "--role", help="Worker role (coder, reviewer, tester, docs)"
+    ),
+    poll_interval: float = typer.Option(
+        2.0, "--poll-interval", help="Poll interval in seconds"
+    ),
 ):
     """Start a MEMBRA worker that connects to a brain server over LAN."""
-    console.print(Panel.fit(
-        "[bold cyan]MEMBRA WORKER[/bold cyan] — Distributed Agent Worker",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold cyan]MEMBRA WORKER[/bold cyan] — Distributed Agent Worker",
+            border_style="cyan",
+        )
+    )
     console.print(f"   Brain: {brain}")
     console.print(f"   Worker ID: {worker_id or 'auto-generated'}")
     console.print(f"   Model: {model}")
@@ -510,14 +602,18 @@ def worker_start(
 @app.command()
 def job_submit(
     prompt: str = typer.Argument(..., help="Job prompt/description"),
-    brain: str = typer.Option("http://127.0.0.1:7777", "--brain", help="Brain server URL"),
+    brain: str = typer.Option(
+        "http://127.0.0.1:7777", "--brain", help="Brain server URL"
+    ),
     job_type: str = typer.Option("code-review", "--type", help="Job type"),
 ):
     """Submit a job to the MEMBRA brain server."""
-    console.print(Panel.fit(
-        "[bold yellow]MEMBRA JOB SUBMIT[/bold yellow] — Submit Work to Brain",
-        border_style="yellow",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold yellow]MEMBRA JOB SUBMIT[/bold yellow] — Submit Work to Brain",
+            border_style="yellow",
+        )
+    )
     console.print(f"   Brain: {brain}")
     console.print(f"   Type: {job_type}")
     console.print(f"   Prompt: {prompt[:60]}...")
@@ -525,6 +621,7 @@ def job_submit(
 
     try:
         import requests
+
         resp = requests.post(
             f"{brain.rstrip('/')}/submit-job",
             json={"prompt": prompt, "type": job_type},
@@ -535,10 +632,12 @@ def job_submit(
         if resp.status_code == 200:
             console.print(f"[green]✅ Job accepted: {data['job_id']}[/green]")
             console.print(f"   Tasks: {data['tasks']}")
-            console.print(f"   Check status: membra job status {data['job_id']} --brain {brain}")
+            console.print(
+                f"   Check status: membra job status {data['job_id']} --brain {brain}"
+            )
         else:
             console.print(f"[red]❌ Error: {data.get('error', 'Unknown')}[/red]")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — user-facing CLI error boundary
         console.print(f"[red]❌ Cannot reach brain at {brain}: {e}[/red]")
         console.print("   Is the brain server running? membra brain start")
 
@@ -546,11 +645,14 @@ def job_submit(
 @app.command()
 def job_status(
     job_id: str = typer.Argument(..., help="Job ID"),
-    brain: str = typer.Option("http://127.0.0.1:7777", "--brain", help="Brain server URL"),
+    brain: str = typer.Option(
+        "http://127.0.0.1:7777", "--brain", help="Brain server URL"
+    ),
 ):
     """Check status of a submitted job."""
     try:
         import requests
+
         resp = requests.get(f"{brain.rstrip('/')}/jobs/{job_id}", timeout=10)
         data = resp.json()
 
@@ -559,7 +661,9 @@ def job_status(
             console.print(f"Status: [bold]{data['status']}[/bold]")
             console.print(f"Prompt: {data['prompt'][:60]}...")
             if data.get("final_artifact"):
-                console.print(f"Artifact hash: {data['final_artifact']['artifact_hash'][:16]}...")
+                console.print(
+                    f"Artifact hash: {data['final_artifact']['artifact_hash'][:16]}..."
+                )
             if data.get("tasks"):
                 table = Table(title="Tasks")
                 table.add_column("Task", style="cyan")
@@ -570,7 +674,7 @@ def job_status(
                 console.print(table)
         else:
             console.print(f"[red]Error: {data.get('error', 'Unknown')}[/red]")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — user-facing CLI error boundary
         console.print(f"[red]Cannot reach brain: {e}[/red]")
 
 
@@ -578,6 +682,7 @@ def job_status(
 def version():
     """Show Membra SDK version."""
     from membra_sdk import __version__
+
     console.print(f"Membra SDK [bold]{__version__}[/bold]")
 
 
@@ -586,10 +691,12 @@ def chat(
     prompt: str = typer.Argument(..., help="Chat prompt to compile into a job"),
 ):
     """Turn a chat prompt into a structured MEMBRA job spec."""
-    console.print(Panel.fit(
-        "[bold green]MEMBRA CHAT COMPILER[/bold green] — Chat → Job Spec",
-        border_style="green",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold green]MEMBRA CHAT COMPILER[/bold green] — Chat → Job Spec",
+            border_style="green",
+        )
+    )
     console.print(f"Prompt: {prompt[:80]}...")
     console.print()
 
@@ -612,22 +719,29 @@ def chat(
 @app.command(name="job")
 def job_cmd(
     action: str = typer.Argument(..., help="Action: create, run, status"),
-    from_chat: str = typer.Option(None, "--from-chat", help="Create job from latest chat (use 'latest')"),
+    from_chat: str = typer.Option(
+        None, "--from-chat", help="Create job from latest chat (use 'latest')"
+    ),
     job_id: str = typer.Option(None, "--job-id", help="Job ID to run or check"),
-    container: str = typer.Option("python:3.11-slim", "--container", help="Container image"),
+    container: str = typer.Option(
+        "python:3.11-slim", "--container", help="Container image"
+    ),
     model: str = typer.Option("ollama:qwen2.5-coder", "--model", help="Model backend"),
 ):
     """Create, run, or check status of a MEMBRA job."""
     if action == "create":
-        console.print(Panel.fit(
-            "[bold yellow]MEMBRA JOB CREATE[/bold yellow]",
-            border_style="yellow",
-        ))
+        console.print(
+            Panel.fit(
+                "[bold yellow]MEMBRA JOB CREATE[/bold yellow]",
+                border_style="yellow",
+            )
+        )
         if from_chat == "latest":
             # Find latest job in .membra/jobs
-            import glob
             job_dir = Path.home() / ".membra" / "jobs"
-            files = sorted(job_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+            files = sorted(
+                job_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True
+            )
             if not files:
                 console.print("[red]No jobs found. Run 'membra chat' first.[/red]")
                 return
@@ -640,10 +754,12 @@ def job_cmd(
             console.print("Use --from-chat latest to create from latest chat")
 
     elif action == "run":
-        console.print(Panel.fit(
-            "[bold cyan]MEMBRA JOB RUN[/bold cyan] — Dry Run / Local Execution",
-            border_style="cyan",
-        ))
+        console.print(
+            Panel.fit(
+                "[bold cyan]MEMBRA JOB RUN[/bold cyan] — Dry Run / Local Execution",
+                border_style="cyan",
+            )
+        )
         if not job_id:
             console.print("[red]Error: --job-id required[/red]")
             return
@@ -678,17 +794,21 @@ def yield_cmd(
     tests_passed: int = typer.Option(0, "--tests-passed", help="Tests passed"),
     tests_total: int = typer.Option(0, "--tests-total", help="Tests total"),
     lint: bool = typer.Option(True, "--lint/--no-lint", help="Lint passed"),
-    security_flags: int = typer.Option(0, "--security-flags", help="Security flags count"),
+    security_flags: int = typer.Option(
+        0, "--security-flags", help="Security flags count"
+    ),
 ):
     """Score yield for a completed job."""
     if action != "score":
         console.print("[red]Use: membra yield score --job-id <id>[/red]")
         return
 
-    console.print(Panel.fit(
-        "[bold magenta]MEMBRA YIELD METER[/bold magenta] — Score Job Yield",
-        border_style="magenta",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold magenta]MEMBRA YIELD METER[/bold magenta] — Score Job Yield",
+            border_style="magenta",
+        )
+    )
 
     meter = YieldMeter()
     artifact_list = [{"path": f"artifact_{i}", "bytes": 1000} for i in range(artifacts)]
@@ -712,7 +832,9 @@ def yield_cmd(
 
     console.print(f"\nEconomic status: {report.economic_status}")
     console.print(f"Real revenue: ${report.real_revenue}")
-    console.print(f"Files: {report.files_created} | Tests: {report.tests_passed}/{report.tests_total}")
+    console.print(
+        f"Files: {report.files_created} | Tests: {report.tests_passed}/{report.tests_total}"
+    )
 
 
 @app.command(name="consensus")
@@ -726,10 +848,12 @@ def consensus_cmd(
         console.print("[red]Use: membra consensus validate --job-id <id>[/red]")
         return
 
-    console.print(Panel.fit(
-        "[bold blue]MEMBRA CONSENSUS[/bold blue] — Validator Consensus",
-        border_style="blue",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]MEMBRA CONSENSUS[/bold blue] — Validator Consensus",
+            border_style="blue",
+        )
+    )
 
     # Load job
     job_dir = Path.home() / ".membra" / "jobs" / f"{job_id}.json"
@@ -752,12 +876,21 @@ def consensus_cmd(
     table.add_column("Reason", style="white")
     for v in votes:
         vote_color = "green" if v["vote"] == "accept" else "red"
-        table.add_row(v["validator_id"], v["role"], f"[{vote_color}]{v['vote']}[/{vote_color}]", v["reason"])
+        table.add_row(
+            v["validator_id"],
+            v["role"],
+            f"[{vote_color}]{v['vote']}[/{vote_color}]",
+            v["reason"],
+        )
     console.print(table)
 
     result_color = "green" if consensus["result"] == "accepted" else "red"
-    console.print(f"\nResult: [{result_color}]{consensus['result'].upper()}[/{result_color}]")
-    console.print(f"Votes: {consensus['yes_votes']}/{consensus['total_votes']} ({consensus['ratio']:.0%})")
+    console.print(
+        f"\nResult: [{result_color}]{consensus['result'].upper()}[/{result_color}]"
+    )
+    console.print(
+        f"Votes: {consensus['yes_votes']}/{consensus['total_votes']} ({consensus['ratio']:.0%})"
+    )
     console.print(f"Threshold: {consensus['threshold']}")
     if consensus.get("rejection_reasons"):
         console.print("Rejection reasons:")
@@ -776,10 +909,12 @@ def proof_cmd(
         console.print("[red]Use: membra proof export --job-id <id>[/red]")
         return
 
-    console.print(Panel.fit(
-        "[bold white]MEMBRA PROOF BUNDLE[/bold white] — Export Proof",
-        border_style="white",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold white]MEMBRA PROOF BUNDLE[/bold white] — Export Proof",
+            border_style="white",
+        )
+    )
 
     job_dir = Path.home() / ".membra" / "jobs" / f"{job_id}.json"
     if not job_dir.exists():
@@ -787,7 +922,10 @@ def proof_cmd(
         return
 
     job = JobSpec.load(str(job_dir))
-    artifacts = [{"path": o, "sha256": "sha256:mock", "bytes": 1000} for o in job.expected_outputs]
+    artifacts = [
+        {"path": o, "sha256": "sha256:mock", "bytes": 1000}
+        for o in job.expected_outputs
+    ]
 
     bundle = ProofBundle()
     proof = bundle.build(
@@ -795,8 +933,20 @@ def proof_cmd(
         job=job.to_dict(),
         container={"image": job.runtime.get("container", "N/A")},
         artifacts=artifacts,
-        yield_report={"artifact_yield": 78.0, "validation_yield": 91.0, "market_yield": 0, "chain_yield": 0, "total_score": 84.5},
-        consensus={"result": "accepted", "yes_votes": 3, "total_votes": 3, "ratio": 1.0, "threshold": "2/3"},
+        yield_report={
+            "artifact_yield": 78.0,
+            "validation_yield": 91.0,
+            "market_yield": 0,
+            "chain_yield": 0,
+            "total_score": 84.5,
+        },
+        consensus={
+            "result": "accepted",
+            "yes_votes": 3,
+            "total_votes": 3,
+            "ratio": 1.0,
+            "threshold": "2/3",
+        },
     )
 
     console.print(f"Proof root: [cyan]{proof['root_hash']}[/cyan]")
@@ -824,10 +974,12 @@ def settle_cmd(
         console.print("[red]Use: membra settle preview --job-id <id>[/red]")
         return
 
-    console.print(Panel.fit(
-        "[bold green]MEMBRA SETTLEMENT[/bold green] — Settlement Preview",
-        border_style="green",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold green]MEMBRA SETTLEMENT[/bold green] — Settlement Preview",
+            border_style="green",
+        )
+    )
 
     job_dir = Path.home() / ".membra" / "jobs" / f"{job_id}.json"
     if not job_dir.exists():
@@ -835,7 +987,10 @@ def settle_cmd(
         return
 
     job = JobSpec.load(str(job_dir))
-    artifacts = [{"path": o, "sha256": "sha256:mock", "bytes": 1000} for o in job.expected_outputs]
+    artifacts = [
+        {"path": o, "sha256": "sha256:mock", "bytes": 1000}
+        for o in job.expected_outputs
+    ]
 
     bundle = ProofBundle()
     proof = bundle.build(
@@ -855,8 +1010,8 @@ def settle_cmd(
         if preview.get("warning"):
             console.print(f"[yellow]⚠️ {preview['warning']}[/yellow]")
         console.print("\nSuggested actions:")
-        for action in preview.get("suggested_actions", []):
-            console.print(f"  • {action}")
+        for suggested in preview.get("suggested_actions", []):
+            console.print(f"  • {suggested}")
 
         # Show invoice preview
         invoice = settlement.export_invoice(proof)
@@ -865,28 +1020,38 @@ def settle_cmd(
         console.print("[red]❌ Not settlable:[/red]")
         console.print(f"   {preview.get('reason', 'Unknown')}")
         console.print("Suggested actions:")
-        for action in preview.get("suggested_actions", []):
-            console.print(f"  • {action}")
+        for suggested in preview.get("suggested_actions", []):
+            console.print(f"  • {suggested}")
 
 
 @app.command(name="validator")
 def validator_start(
     model: str = typer.Option("llmgpt", "--model", help="Model type: llmgpt, ollama"),
-    checkpoint: Optional[str] = typer.Option(None, "--checkpoint", help="Path to LLMGPT checkpoint"),
+    checkpoint: str | None = typer.Option(
+        None, "--checkpoint", help="Path to LLMGPT checkpoint"
+    ),
     n_layer: int = typer.Option(4, "--n-layer", help="Number of transformer layers"),
     n_head: int = typer.Option(4, "--n-head", help="Number of attention heads"),
     n_embd: int = typer.Option(256, "--n-embd", help="Embedding dimension"),
-    temperature: float = typer.Option(0.8, "--temperature", help="Sampling temperature"),
+    temperature: float = typer.Option(
+        0.8, "--temperature", help="Sampling temperature"
+    ),
     top_k: int = typer.Option(40, "--top-k", help="Top-k sampling"),
     mode: str = typer.Option("chat", "--mode", help="Mode: chat, validate, evaluate"),
-    job_id: Optional[str] = typer.Option(None, "--job-id", help="Job ID for validator mode"),
-    solana: bool = typer.Option(False, "--solana", help="Submit votes to Solana devnet"),
+    job_id: str | None = typer.Option(
+        None, "--job-id", help="Job ID for validator mode"
+    ),
+    solana: bool = typer.Option(
+        False, "--solana", help="Submit votes to Solana devnet"
+    ),
 ):
     """Start MEMBRA LLMGPT — terminal-native AI validator."""
-    console.print(Panel.fit(
-        "[bold cyan]MEMBRA LLMGPT[/bold cyan] — Terminal-Native AI Validator",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold cyan]MEMBRA LLMGPT[/bold cyan] — Terminal-Native AI Validator",
+            border_style="cyan",
+        )
+    )
 
     if model == "llmgpt":
         config = GPTConfig(n_layer=n_layer, n_head=n_head, n_embd=n_embd)
@@ -899,7 +1064,9 @@ def validator_start(
             console.print(f"   [green]Loaded checkpoint: {checkpoint}[/green]")
         else:
             llm = LLMGPT(config)
-            console.print("   [yellow]Random initialization (train or load checkpoint)[/yellow]")
+            console.print(
+                "   [yellow]Random initialization (train or load checkpoint)[/yellow]"
+            )
 
         if mode == "chat":
             chat = TerminalChat(
@@ -910,7 +1077,9 @@ def validator_start(
             chat.run()
 
         elif mode == "validate":
-            console.print("[yellow]Validator mode: evaluating job artifacts...[/yellow]")
+            console.print(
+                "[yellow]Validator mode: evaluating job artifacts...[/yellow]"
+            )
             engine = ValidatorEngine(llm)
 
             if job_id:
@@ -919,8 +1088,10 @@ def validator_start(
                     job = JobSpec.load(str(job_dir))
                     artifacts = [{"path": o} for o in job.expected_outputs]
                     result = engine.evaluate(job.intent, artifacts)
-                    console.print(f"\n[bold]Validation Result:[/bold]")
-                    console.print(f"  Vote: {'ACCEPT' if result['vote'] == 1 else 'REJECT'}")
+                    console.print("\n[bold]Validation Result:[/bold]")
+                    console.print(
+                        f"  Vote: {'ACCEPT' if result['vote'] == 1 else 'REJECT'}"
+                    )
                     console.print(f"  Score: {result['score']}")
                     console.print(f"  Reason: {result['reason']}")
 
@@ -937,7 +1108,9 @@ def validator_start(
                 console.print("[red]Use --job-id to specify job[/red]")
 
         elif mode == "evaluate":
-            console.print("[yellow]Evaluation mode: interactive artifact review[/yellow]")
+            console.print(
+                "[yellow]Evaluation mode: interactive artifact review[/yellow]"
+            )
             engine = ValidatorEngine(llm)
             console.print("Enter artifact path (or 'done' to finish):")
             artifacts = []
@@ -951,7 +1124,7 @@ def validator_start(
                             content = f.read()
                         artifacts.append({"path": path, "content": content})
                         console.print(f"  Added: {path}")
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001
                         console.print(f"  [red]Error: {e}[/red]")
                 else:
                     console.print(f"  [red]File not found: {path}[/red]")
@@ -959,13 +1132,17 @@ def validator_start(
             if artifacts:
                 intent = input("Job intent: ")
                 result = engine.evaluate(intent, artifacts)
-                console.print(f"\n[bold]Evaluation:[/bold]")
-                console.print(f"  Vote: {'ACCEPT' if result['vote'] == 1 else 'REJECT'}")
+                console.print("\n[bold]Evaluation:[/bold]")
+                console.print(
+                    f"  Vote: {'ACCEPT' if result['vote'] == 1 else 'REJECT'}"
+                )
                 console.print(f"  Score: {result['score']}")
                 console.print(f"  Reason: {result['reason']}")
 
         else:
-            console.print(f"[red]Unknown mode: {mode}. Use: chat, validate, evaluate[/red]")
+            console.print(
+                f"[red]Unknown mode: {mode}. Use: chat, validate, evaluate[/red]"
+            )
 
     else:
         console.print(f"[red]Unknown model: {model}. Use: llmgpt[/red]")
@@ -973,22 +1150,42 @@ def validator_start(
 
 @app.command(name="token-gate")
 def token_gate_cmd(
-    action: str = typer.Argument(..., help="Action: status, prepare-mint, prepare-pool, check-readiness"),
-    treasury_sol: float = typer.Option(0.0, "--treasury-sol", help="Treasury SOL balance"),
-    treasury_usdc: float = typer.Option(0.0, "--treasury-usdc", help="Treasury USDC balance"),
+    action: str = typer.Argument(
+        ..., help="Action: status, prepare-mint, prepare-pool, check-readiness"
+    ),
+    treasury_sol: float = typer.Option(
+        0.0, "--treasury-sol", help="Treasury SOL balance"
+    ),
+    treasury_usdc: float = typer.Option(
+        0.0, "--treasury-usdc", help="Treasury USDC balance"
+    ),
     agent_online: bool = typer.Option(False, "--agent-online", help="Agent is running"),
-    dashboard_online: bool = typer.Option(False, "--dashboard-online", help="Dashboard is accessible"),
-    corpus_indexed: bool = typer.Option(False, "--corpus-indexed", help="Corpus has been indexed"),
-    proof_published: bool = typer.Option(False, "--proof-published", help="Proof manifest published"),
-    wallet_connected: bool = typer.Option(False, "--wallet-connected", help="Wallet is connected"),
-    human_approved: bool = typer.Option(False, "--human-approved", help="Human or multisig approval granted"),
-    mainnet_enabled: bool = typer.Option(False, "--mainnet-enabled", help="Mainnet policy enabled"),
+    dashboard_online: bool = typer.Option(
+        False, "--dashboard-online", help="Dashboard is accessible"
+    ),
+    corpus_indexed: bool = typer.Option(
+        False, "--corpus-indexed", help="Corpus has been indexed"
+    ),
+    proof_published: bool = typer.Option(
+        False, "--proof-published", help="Proof manifest published"
+    ),
+    wallet_connected: bool = typer.Option(
+        False, "--wallet-connected", help="Wallet is connected"
+    ),
+    human_approved: bool = typer.Option(
+        False, "--human-approved", help="Human or multisig approval granted"
+    ),
+    mainnet_enabled: bool = typer.Option(
+        False, "--mainnet-enabled", help="Mainnet policy enabled"
+    ),
 ):
     """Check token and liquidity launch readiness."""
-    console.print(Panel.fit(
-        "[bold magenta]MEMBRA TOKEN GATE[/bold magenta] — Production Launch Readiness",
-        border_style="magenta",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold magenta]MEMBRA TOKEN GATE[/bold magenta] — Production Launch Readiness",
+            border_style="magenta",
+        )
+    )
 
     state = TokenLaunchState(
         agent_online=agent_online,
@@ -1020,7 +1217,9 @@ def token_gate_cmd(
         if can_begin_token_and_liquidity(state):
             console.print("[bold green]✅ ALL CONDITIONS MET[/bold green]")
             console.print("The agent may prepare token and liquidity transactions.")
-            console.print("[yellow]A human or multisig must still sign all mainnet transactions.[/yellow]")
+            console.print(
+                "[yellow]A human or multisig must still sign all mainnet transactions.[/yellow]"
+            )
         else:
             console.print("[bold red]❌ NOT READY[/bold red]")
             console.print("Missing conditions:")
@@ -1034,17 +1233,23 @@ def token_gate_cmd(
             console.print("  Decimals: 6")
             console.print("  Supply: Fixed (published before mint)")
             console.print("  Mint authority: Multisig or hardware wallet")
-            console.print("[yellow]⚠️  This is a PREPARED transaction. A human/multisig must sign.[/yellow]")
+            console.print(
+                "[yellow]⚠️  This is a PREPARED transaction. A human/multisig must sign.[/yellow]"
+            )
         else:
             console.print("[red]❌ Cannot prepare mint. Check readiness first.[/red]")
 
     elif action == "prepare-pool":
         if can_begin_token_and_liquidity(state):
-            console.print("[green]✅ Preparing Raydium MEMBRA/USDC pool transaction...[/green]")
+            console.print(
+                "[green]✅ Preparing Raydium MEMBRA/USDC pool transaction...[/green]"
+            )
             console.print("  Pair: MEMBRA/USDC")
             console.print("  Venue: Raydium")
             console.print("  Initial price: From actual LP deposit")
-            console.print("[yellow]⚠️  This is a PREPARED transaction. A human/multisig must sign.[/yellow]")
+            console.print(
+                "[yellow]⚠️  This is a PREPARED transaction. A human/multisig must sign.[/yellow]"
+            )
         else:
             console.print("[red]❌ Cannot prepare pool. Check readiness first.[/red]")
 

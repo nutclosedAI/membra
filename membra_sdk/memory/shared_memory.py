@@ -11,18 +11,18 @@ Instead of shared tensors (impossible over WiFi), we use shared memory:
 Every worker reads/writes to the same memory layer.
 Worker A learns something → stores memory → Worker B can use it.
 """
+
 import hashlib
 import json
 import os
 import sqlite3
 import time
-from typing import Dict, List, Optional
 
 
 class SharedMemory:
     """SQLite-based shared memory for all MoA agents."""
 
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: str | None = None):
         self.db_path = db_path or os.path.expanduser("~/.membra/shared_memory.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._init_db()
@@ -74,8 +74,14 @@ class SharedMemory:
             """)
             conn.commit()
 
-    def store(self, agent_id: str, memory_type: str, key: str,
-              value: any, job_id: str = None):
+    def store(
+        self,
+        agent_id: str,
+        memory_type: str,
+        key: str,
+        value: any,
+        job_id: str | None = None,
+    ):
         """Store a memory entry."""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
@@ -84,8 +90,13 @@ class SharedMemory:
             )
             conn.commit()
 
-    def retrieve(self, agent_id: str = None, memory_type: str = None,
-                   key: str = None, limit: int = 100) -> List[Dict]:
+    def retrieve(
+        self,
+        agent_id: str | None = None,
+        memory_type: str | None = None,
+        key: str | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
         """Retrieve memory entries with filters."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -117,8 +128,15 @@ class SharedMemory:
                 for r in rows
             ]
 
-    def log_task(self, task_id: str, agent_id: str, role: str,
-                 status: str, result_hash: str = None, job_id: str = None):
+    def log_task(
+        self,
+        task_id: str,
+        agent_id: str,
+        role: str,
+        status: str,
+        result_hash: str | None = None,
+        job_id: str | None = None,
+    ):
         """Log a task execution."""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
@@ -127,8 +145,13 @@ class SharedMemory:
             )
             conn.commit()
 
-    def update_reputation(self, worker_id: str, score: float, success: bool,
-                          safety_violation: bool = False):
+    def update_reputation(
+        self,
+        worker_id: str,
+        score: float,
+        success: bool,
+        safety_violation: bool = False,
+    ):
         """Update worker reputation."""
         with sqlite3.connect(self.db_path) as conn:
             # Try update first
@@ -140,17 +163,29 @@ class SharedMemory:
                     safety_violations = safety_violations + ?,
                     last_active = ?
                 WHERE worker_id = ?""",
-                (1 if success else 0, score, 1 if safety_violation else 0, time.time(), worker_id),
+                (
+                    1 if success else 0,
+                    score,
+                    1 if safety_violation else 0,
+                    time.time(),
+                    worker_id,
+                ),
             )
             # If no rows affected, insert
             if conn.total_changes == 0:
                 conn.execute(
                     "INSERT INTO worker_reputation (worker_id, total_tasks, successful_tasks, avg_score, safety_violations, last_active) VALUES (?, 1, ?, ?, ?, ?)",
-                    (worker_id, 1 if success else 0, score, 1 if safety_violation else 0, time.time()),
+                    (
+                        worker_id,
+                        1 if success else 0,
+                        score,
+                        1 if safety_violation else 0,
+                        time.time(),
+                    ),
                 )
             conn.commit()
 
-    def get_reputation(self, worker_id: str) -> Optional[Dict]:
+    def get_reputation(self, worker_id: str) -> dict | None:
         """Get worker reputation."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -162,13 +197,21 @@ class SharedMemory:
                 return dict(row)
             return None
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Memory layer statistics."""
         with sqlite3.connect(self.db_path) as conn:
-            total_memories = conn.execute("SELECT COUNT(*) FROM agent_memory").fetchone()[0]
-            total_tasks = conn.execute("SELECT COUNT(*) FROM task_history").fetchone()[0]
-            total_workers = conn.execute("SELECT COUNT(*) FROM worker_reputation").fetchone()[0]
-            avg_score = conn.execute("SELECT AVG(avg_score) FROM worker_reputation").fetchone()[0]
+            total_memories = conn.execute(
+                "SELECT COUNT(*) FROM agent_memory"
+            ).fetchone()[0]
+            total_tasks = conn.execute("SELECT COUNT(*) FROM task_history").fetchone()[
+                0
+            ]
+            total_workers = conn.execute(
+                "SELECT COUNT(*) FROM worker_reputation"
+            ).fetchone()[0]
+            avg_score = conn.execute(
+                "SELECT AVG(avg_score) FROM worker_reputation"
+            ).fetchone()[0]
 
             return {
                 "total_memories": total_memories,
@@ -181,7 +224,7 @@ class SharedMemory:
 class ArtifactStore:
     """File-based artifact store with hash verification."""
 
-    def __init__(self, storage_path: str = None):
+    def __init__(self, storage_path: str | None = None):
         self.storage_path = storage_path or os.path.expanduser("~/.membra/artifacts")
         os.makedirs(self.storage_path, exist_ok=True)
 
@@ -209,7 +252,7 @@ class ArtifactStore:
 
         return content_hash
 
-    def retrieve(self, job_id: str, filename: str) -> Optional[str]:
+    def retrieve(self, job_id: str, filename: str) -> str | None:
         """Retrieve an artifact."""
         path = os.path.join(self.storage_path, job_id, filename)
         if not os.path.exists(path):

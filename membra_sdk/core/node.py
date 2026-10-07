@@ -1,17 +1,16 @@
 """Membra Node — Main orchestrator for M5 Pro validator."""
+
 import asyncio
 import hashlib
 import json
 import os
 import time
-from pathlib import Path
-from typing import Dict, List, Optional
 
 import psutil
 
+from membra_sdk.consensus.poy import ProofOfYieldConsensus
 from membra_sdk.core.ledger import InternalLedger
 from membra_sdk.core.yield_engine import YieldEngine
-from membra_sdk.consensus.poy import ProofOfYieldConsensus
 
 
 class MembraNode:
@@ -26,7 +25,7 @@ class MembraNode:
     6. Batched settlement to Solana devnet for public anchoring
     """
 
-    def __init__(self, node_id: str = None, config_path: str = None):
+    def __init__(self, node_id: str | None = None, config_path: str | None = None):
         self.node_id = node_id or self._generate_node_id()
         self.config_path = config_path or os.path.expanduser("~/.membra/config.yaml")
         self.ledger = InternalLedger()
@@ -60,6 +59,11 @@ class MembraNode:
             self._status_loop(),
         )
 
+    @staticmethod
+    def _read_head(path: str, limit: int = 2000) -> str:
+        with open(path, errors="ignore") as f:
+            return f.read()[:limit]
+
     async def _file_mining_loop(self):
         """Scan files, estimate yield, queue operations."""
         scan_paths = [
@@ -75,14 +79,19 @@ class MembraNode:
                         continue
                     for root, _, files in os.walk(path):
                         for fname in files[:10]:  # Rate limit
-                            if fname.endswith((".rs", ".sol", ".go", ".py", ".js", ".ts")):
+                            if fname.endswith(
+                                (".rs", ".sol", ".go", ".py", ".js", ".ts")
+                            ):
                                 fpath = os.path.join(root, fname)
                                 try:
-                                    with open(fpath, "r", errors="ignore") as f:
-                                        content = f.read()[:2000]
+                                    content = await asyncio.to_thread(
+                                        self._read_head, fpath
+                                    )
 
                                     # Estimate yield from file
-                                    yield_est = self.yield_engine.estimate(fpath, content)
+                                    yield_est = self.yield_engine.estimate(
+                                        fpath, content
+                                    )
 
                                     # Create operation
                                     op = {
@@ -98,10 +107,10 @@ class MembraNode:
                                     self.stats["files_scanned"] += 1
                                     self.stats["yield_estimated"] += yield_est
 
-                                except Exception:
+                                except Exception:  # noqa: BLE001, S110
                                     pass
                 await asyncio.sleep(5)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"[MINING] Error: {e}")
                 await asyncio.sleep(10)
 
@@ -128,10 +137,12 @@ class MembraNode:
 
                     if result.finalized:
                         self.stats["batches_finalized"] += 1
-                        print(f"[CONSENSUS] Batch finalized — yield: {total_yield:.4f} — root: {root[:16]}...")
+                        print(
+                            f"[CONSENSUS] Batch finalized — yield: {total_yield:.4f} — root: {root[:16]}..."
+                        )
 
                 await asyncio.sleep(3)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"[CONSENSUS] Error: {e}")
                 await asyncio.sleep(5)
 
@@ -142,7 +153,9 @@ class MembraNode:
             # In production: send memo tx with finalized root
             # For now, log the intent
             if self.stats["batches_finalized"] > 0:
-                print(f"[SETTLE] Would anchor {self.stats['batches_finalized']} batches to Solana")
+                print(
+                    f"[SETTLE] Would anchor {self.stats['batches_finalized']} batches to Solana"
+                )
 
     async def _status_loop(self):
         """Print periodic status."""
@@ -155,7 +168,7 @@ class MembraNode:
                 f"Files: {self.stats['files_scanned']}"
             )
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return {
             "node_id": self.node_id,
             "running": self.running,

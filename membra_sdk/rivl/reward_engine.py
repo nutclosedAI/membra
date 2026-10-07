@@ -13,21 +13,23 @@ Doctrine:
   Reward is not fantasy profit. Reward is verified success.
   Yield is not model confidence. Yield is settled external value.
 """
+
 import hashlib
 import json
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar
 
 
 @dataclass
 class RewardEvent:
     """A single scored output event."""
+
     prompt_hash: str
     output_hash: str
     reward: float
-    verdict: str          # "accepted" or "punished"
+    verdict: str  # "accepted" or "punished"
     reason: str
     tests_passed: bool
     security_passed: bool
@@ -46,7 +48,7 @@ class RIVLRewardEngine:
     """
 
     # Default weights — harsh on safety/financial, generous on verified success
-    DEFAULT_WEIGHTS = {
+    DEFAULT_WEIGHTS: ClassVar[dict[str, float]] = {
         "tests_passed": 10.0,
         "tests_failed": -25.0,
         "security_passed": 10.0,
@@ -68,7 +70,9 @@ class RIVLRewardEngine:
         "unauthorized_contract": -100.0,
     }
 
-    def __init__(self, storage_path: str = None, weights: Dict[str, float] = None):
+    def __init__(
+        self, storage_path: str | None = None, weights: dict[str, float] | None = None
+    ):
         self.storage_path = Path(storage_path or "~/.membra/reward_events.jsonl")
         self.storage_path = self.storage_path.expanduser()
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
@@ -176,7 +180,7 @@ class RIVLRewardEngine:
         self._persist(event)
         return event
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get reward engine statistics."""
         events = self._load_all()
         if not events:
@@ -209,7 +213,7 @@ class RIVLRewardEngine:
         with self.storage_path.open("a") as f:
             f.write(json.dumps(asdict(event)) + "\n")
 
-    def _load_all(self) -> List[Dict]:
+    def _load_all(self) -> list[dict]:
         """Load all events from JSONL."""
         events = []
         if not self.storage_path.exists():

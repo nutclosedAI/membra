@@ -11,13 +11,14 @@ Rules:
 - The agent may NOT HOLD private keys.
 - The agent may NOT call appraisals liquid cash.
 """
+
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class TokenLaunchState:
     """Represents the state required for token + liquidity launch."""
+
     agent_online: bool = False
     dashboard_online: bool = False
     corpus_indexed: bool = False
@@ -42,30 +43,34 @@ def can_begin_token_and_liquidity(state: TokenLaunchState) -> bool:
     Hard gate for token + liquidity launch.
     All conditions must be True.
     """
-    return all([
-        state.agent_online is True,
-        state.dashboard_online is True,
-        state.corpus_indexed is True,
-        state.proof_manifest_published is True,
-        state.wallet_connected is True,
-        state.human_or_multisig_approval is True,
-        state.treasury_sol >= 0.25,
-        state.treasury_usdc >= 500.0,
-        state.no_private_keys_stored is True,
-        state.mainnet_policy_enabled is True,
-    ])
+    return all(
+        [
+            state.agent_online is True,
+            state.dashboard_online is True,
+            state.corpus_indexed is True,
+            state.proof_manifest_published is True,
+            state.wallet_connected is True,
+            state.human_or_multisig_approval is True,
+            state.treasury_sol >= 0.25,
+            state.treasury_usdc >= 500.0,
+            state.no_private_keys_stored is True,
+            state.mainnet_policy_enabled is True,
+        ]
+    )
 
 
 def can_stake_treasury_sol(state: TokenLaunchState) -> bool:
     """
     Hard gate for treasury SOL liquid staking.
     """
-    return all([
-        state.treasury_staking_policy_enabled is True,
-        state.treasury_sol >= 1.0,
-        state.staking_allocation_bps <= 5000,
-        state.human_or_multisig_approval is True,
-    ])
+    return all(
+        [
+            state.treasury_staking_policy_enabled is True,
+            state.treasury_sol >= 1.0,
+            state.staking_allocation_bps <= 5000,
+            state.human_or_multisig_approval is True,
+        ]
+    )
 
 
 def get_missing_conditions(state: TokenLaunchState) -> list[str]:

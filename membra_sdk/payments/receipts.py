@@ -10,25 +10,25 @@ A payment receipt is NOT yield until:
 4. The status is "settled" or "confirmed"
 5. 2/3 validators independently verify the receipt
 """
+
 import hashlib
-import json
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import ClassVar
 
 
 @dataclass
 class PaymentReceipt:
     receipt_id: str
     job_id: str
-    processor: str           # "stripe", "solana", "ethereum", etc.
+    processor: str  # "stripe", "solana", "ethereum", etc.
     transaction_id: str
     amount_usd: float
-    amount_crypto: Optional[float]
+    amount_crypto: float | None
     currency: str
-    status: str              # "pending", "confirmed", "settled", "failed"
+    status: str  # "pending", "confirmed", "settled", "failed"
     timestamp: float
-    metadata: Dict
+    metadata: dict
 
     def hash(self) -> str:
         """Hash of receipt for consensus."""
@@ -40,18 +40,18 @@ class ReceiptVerifier:
     """Verifies payment receipts from external processors."""
 
     # Recognized processors and their verification methods
-    PROCESSORS = {
+    PROCESSORS: ClassVar[dict[str, str | None]] = {
         "stripe": "https://api.stripe.com/v1/charges",
         "solana": "https://api.devnet.solana.com",
         "ethereum": None,  # Would use etherscan API
-        "manual": None,    # Manual verification (trust-based)
+        "manual": None,  # Manual verification (trust-based)
     }
 
     def __init__(self):
-        self.verified_receipts: Dict[str, PaymentReceipt] = {}
-        self.verification_log: List[Dict] = []
+        self.verified_receipts: dict[str, PaymentReceipt] = {}
+        self.verification_log: list[dict] = []
 
-    def verify(self, receipt: PaymentReceipt) -> Dict:
+    def verify(self, receipt: PaymentReceipt) -> dict:
         """Verify a payment receipt. Returns verification result."""
         result = {
             "receipt_id": receipt.receipt_id,
@@ -64,7 +64,11 @@ class ReceiptVerifier:
         result["checks"]["amount_positive"] = receipt.amount_usd > 0
 
         # Check 2: Status is settled/confirmed
-        result["checks"]["status_settled"] = receipt.status in ("settled", "confirmed", "succeeded")
+        result["checks"]["status_settled"] = receipt.status in (
+            "settled",
+            "confirmed",
+            "succeeded",
+        )
 
         # Check 3: Processor is recognized
         result["checks"]["processor_known"] = receipt.processor in self.PROCESSORS
@@ -73,7 +77,7 @@ class ReceiptVerifier:
         result["checks"]["tx_id_present"] = len(receipt.transaction_id) > 0
 
         # Check 5: Receipt hash is consistent
-        expected_hash = receipt.hash()
+        receipt.hash()
         result["checks"]["hash_valid"] = True  # Hash is deterministic
 
         # Overall validity: all checks must pass
@@ -85,13 +89,13 @@ class ReceiptVerifier:
         self.verification_log.append(result)
         return result
 
-    def get_verification(self, receipt_id: str) -> Optional[Dict]:
+    def get_verification(self, receipt_id: str) -> dict | None:
         for log in self.verification_log:
             if log["receipt_id"] == receipt_id:
                 return log
         return None
 
-    def consensus_verify(self, receipts: List[PaymentReceipt]) -> Dict:
+    def consensus_verify(self, receipts: list[PaymentReceipt]) -> dict:
         """Multiple validators verify same receipt set for consensus."""
         results = [self.verify(r) for r in receipts]
         valid_count = sum(1 for r in results if r["valid"])

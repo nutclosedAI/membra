@@ -11,14 +11,13 @@ WARNING: This is an ARCHITECTURE PROTOTYPE. It does NOT guarantee yield.
 Real DeFi yield depends on market conditions, impermanent loss, and smart
 contract risk. No real transactions are sent without explicit user confirmation.
 """
+
 import time
 from dataclasses import dataclass
-from typing import Dict, List
 
 
 class PolicyError(Exception):
     """Raised when DeFi policy gates block execution."""
-    pass
 
 
 @dataclass
@@ -37,7 +36,7 @@ class LiquidityPosition:
 
 @dataclass
 class YieldOpportunity:
-    protocol: str      # "raydium", "jupiter", "orca", etc.
+    protocol: str  # "raydium", "jupiter", "orca", etc.
     pool_address: str
     token_a: str
     token_b: str
@@ -64,8 +63,8 @@ class AutonomousDeFiOperator:
         self.config = config or DeFiConfig()
         self._enforce_policy()
 
-        self.positions: List[LiquidityPosition] = []
-        self.opportunities: List[YieldOpportunity] = []
+        self.positions: list[LiquidityPosition] = []
+        self.opportunities: list[YieldOpportunity] = []
         self.total_deployed = 0.0
         self.total_fees = 0.0
 
@@ -87,7 +86,7 @@ class AutonomousDeFiOperator:
                 "Set user_acknowledged=True after reading WARNING."
             )
 
-    def scan_opportunities(self) -> List[YieldOpportunity]:
+    def scan_opportunities(self) -> list[YieldOpportunity]:
         """Scan for yield opportunities. Returns simulated data."""
         self.opportunities = [
             YieldOpportunity(
@@ -107,7 +106,9 @@ class AutonomousDeFiOperator:
         """Risk filter. Conservative: only accept risk_score < 5."""
         return opp.risk_score < 5.0 and opp.apy_estimate > 5.0
 
-    def simulate_deploy(self, opp: YieldOpportunity, amount: float) -> LiquidityPosition:
+    def simulate_deploy(
+        self, opp: YieldOpportunity, amount: float
+    ) -> LiquidityPosition:
         """Simulate LP position. NO REAL TRANSACTION SENT."""
         position = LiquidityPosition(
             pool_id=opp.pool_address,
@@ -125,18 +126,19 @@ class AutonomousDeFiOperator:
         self.total_deployed += amount
         return position
 
-    def get_proof_of_yield(self) -> Dict:
+    def get_proof_of_yield(self) -> dict:
         """Generate proof-of-yield report for consensus."""
         return {
             "total_deployed": self.total_deployed,
             "total_fees_earned": self.total_fees,
             "positions": len(self.positions),
-            "avg_impermanent_loss": sum(p.impermanent_loss for p in self.positions) / max(len(self.positions), 1),
+            "avg_impermanent_loss": sum(p.impermanent_loss for p in self.positions)
+            / max(len(self.positions), 1),
             "timestamp": time.time(),
             "status": "SIMULATED — NO REAL YIELD",
         }
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         return {
             "positions": len(self.positions),
             "opportunities_scanned": len(self.opportunities),
@@ -149,8 +151,9 @@ class AutonomousDeFiOperator:
 @dataclass
 class DeFiConfig:
     """Configuration for DeFi operator with policy gates."""
+
     enable_defi: bool = False
-    network: str = "none"           # Must be "devnet" to enable
+    network: str = "none"  # Must be "devnet" to enable
     user_acknowledged: bool = False  # Must acknowledge risk
     solana_rpc: str = "https://api.devnet.solana.com"
     max_risk_score: float = 5.0

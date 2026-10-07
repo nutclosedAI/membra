@@ -1,4 +1,4 @@
-from membra_sdk.marketplace.jobs import JobBoard, BuildJob, JobStatus
 from membra_sdk.marketplace.escrow import EscrowManager, EscrowState
+from membra_sdk.marketplace.jobs import BuildJob, JobBoard, JobStatus
 
-__all__ = ["JobBoard", "BuildJob", "JobStatus", "EscrowManager", "EscrowState"]
+__all__ = ["BuildJob", "EscrowManager", "EscrowState", "JobBoard", "JobStatus"]

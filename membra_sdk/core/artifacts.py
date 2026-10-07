@@ -10,37 +10,44 @@ Doctrine:
 This module tracks build artifacts, tests, and proofs so that PoY consensus
 has evidence to validate, not just file scans.
 """
+
 import hashlib
 import json
 import os
 import subprocess
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar
 
 
 @dataclass
 class BuildArtifact:
     artifact_id: str
-    artifact_type: str      # "file", "test", "contract", "benchmark", "deployment"
+    artifact_type: str  # "file", "test", "contract", "benchmark", "deployment"
     path: str
-    content_hash: str       # sha256 of file contents
-    build_log_hash: str     # sha256 of build/test output
-    status: str             # "created", "compiled", "tested", "deployed"
+    content_hash: str  # sha256 of file contents
+    build_log_hash: str  # sha256 of build/test output
+    status: str  # "created", "compiled", "tested", "deployed"
     timestamp: float
-    metadata: Dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
 
 
 class ArtifactTracker:
     """Tracks build artifacts from LLM output to verified yield records."""
 
-    ARTIFACT_TYPES = ["file", "test", "contract", "benchmark", "deployment", "receipt"]
+    ARTIFACT_TYPES: ClassVar[list[str]] = [
+        "file",
+        "test",
+        "contract",
+        "benchmark",
+        "deployment",
+        "receipt",
+    ]
 
-    def __init__(self, workspace: str = None):
+    def __init__(self, workspace: str | None = None):
         self.workspace = workspace or os.path.expanduser("~/.membra/artifacts")
         os.makedirs(self.workspace, exist_ok=True)
-        self.artifacts: List[BuildArtifact] = []
+        self.artifacts: list[BuildArtifact] = []
         self.load_index()
 
     def _hash_file(self, path: str) -> str:
@@ -74,35 +81,43 @@ class ArtifactTracker:
         self._save_index()
         return artifact
 
-    def run_tests(self, artifact: BuildArtifact, command: List[str]) -> BuildArtifact:
+    def run_tests(self, artifact: BuildArtifact, command: list[str]) -> BuildArtifact:
         """Run tests on an artifact and record results."""
         try:
             result = subprocess.run(
                 command,
                 capture_output=True,
                 text=True,
+                check=False,
                 timeout=60,
-                cwd=os.path.dirname(artifact.path) if os.path.isfile(artifact.path) else artifact.path,
+                cwd=(
+                    os.path.dirname(artifact.path)
+                    if os.path.isfile(artifact.path)
+                    else artifact.path
+                ),
             )
             log = f"exit={result.returncode}\nstdout={result.stdout[:2000]}\nstderr={result.stderr[:1000]}"
             artifact.build_log_hash = self._hash_string(log)
             artifact.status = "tested" if result.returncode == 0 else "test_failed"
             artifact.metadata["test_exit_code"] = result.returncode
             artifact.metadata["test_log_preview"] = result.stdout[:500]
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             artifact.status = "test_error"
             artifact.metadata["test_error"] = str(e)
 
         self._save_index()
         return artifact
 
-    def compile_contract(self, artifact: BuildArtifact, compiler: str = "solc") -> BuildArtifact:
+    def compile_contract(
+        self, artifact: BuildArtifact, compiler: str = "solc"
+    ) -> BuildArtifact:
         """Compile a smart contract and record binary hash."""
         try:
             result = subprocess.run(
                 [compiler, "--bin", artifact.path],
                 capture_output=True,
                 text=True,
+                check=False,
                 timeout=30,
             )
             if result.returncode == 0:
@@ -118,35 +133,39 @@ class ArtifactTracker:
         except FileNotFoundError:
             artifact.status = "compiler_missing"
             artifact.metadata["compile_error"] = f"{compiler} not installed"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — compile failure becomes an error status
             artifact.status = "compile_error"
             artifact.metadata["compile_error"] = str(e)
 
         self._save_index()
         return artifact
 
-    def get_yield_evidence(self) -> List[Dict]:
+    def get_yield_evidence(self) -> list[dict]:
         """Return artifacts that can be used as yield evidence in consensus."""
         evidence = []
         for art in self.artifacts:
             if art.status in ("tested", "compiled", "deployed"):
-                evidence.append({
-                    "id": art.artifact_id,
-                    "type": art.artifact_type,
-                    "path": art.path,
-                    "content_hash": art.content_hash,
-                    "build_log_hash": art.build_log_hash,
-                    "status": art.status,
-                    "timestamp": art.timestamp,
-                })
+                evidence.append(
+                    {
+                        "id": art.artifact_id,
+                        "type": art.artifact_type,
+                        "path": art.path,
+                        "content_hash": art.content_hash,
+                        "build_log_hash": art.build_log_hash,
+                        "status": art.status,
+                        "timestamp": art.timestamp,
+                    }
+                )
         return evidence
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         return {
             "total": len(self.artifacts),
             "tested": sum(1 for a in self.artifacts if a.status == "tested"),
             "compiled": sum(1 for a in self.artifacts if a.status == "compiled"),
-            "failed": sum(1 for a in self.artifacts if "failed" in a.status or "error" in a.status),
+            "failed": sum(
+                1 for a in self.artifacts if "failed" in a.status or "error" in a.status
+            ),
             "yield_evidence": len(self.get_yield_evidence()),
         }
 
@@ -189,5 +208,5 @@ class ArtifactTracker:
                     )
                     for a in data
                 ]
-            except Exception:
+            except Exception:  # noqa: BLE001, S110 — tolerate corrupt index file
                 pass

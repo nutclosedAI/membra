@@ -5,36 +5,37 @@ The doctrine:
 - KYI reviews flagged events before they enter monetization.
 - Identity is attested, not stored in full.
 """
+
 import hashlib
-import json
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 
 @dataclass
 class IdentityAttestation:
     """An attestation of user identity without storing full PII."""
+
     attestation_id: str
     user_id: str
-    method: str              # "email", "phone", "government_id", "biometric", "wallet"
-    status: str              # "pending", "verified", "rejected", "expired"
-    identity_hash: str       # Hash of identity document (not the document itself)
+    method: str  # "email", "phone", "government_id", "biometric", "wallet"
+    status: str  # "pending", "verified", "rejected", "expired"
+    identity_hash: str  # Hash of identity document (not the document itself)
     timestamp: float
-    expires_at: Optional[float] = None
-    metadata: Dict = field(default_factory=dict)
+    expires_at: float | None = None
+    metadata: dict = field(default_factory=dict)
 
 
 class KYINotary:
     """Know Your Identity notary for verifying identity and attesting to value events."""
 
     def __init__(self):
-        self.attestations: Dict[str, IdentityAttestation] = {}
-        self.flagged_events: List[Dict] = []
-        self.review_log: List[Dict] = []
+        self.attestations: dict[str, IdentityAttestation] = {}
+        self.flagged_events: list[dict] = []
+        self.review_log: list[dict] = []
 
-    def request_attestation(self, user_id: str, method: str,
-                          identity_document: str = None) -> IdentityAttestation:
+    def request_attestation(
+        self, user_id: str, method: str, identity_document: str | None = None
+    ) -> IdentityAttestation:
         """Request identity attestation. Document is hashed, not stored."""
         identity_hash = ""
         if identity_document:
@@ -58,16 +59,19 @@ class KYINotary:
         if not att:
             return False
         att.status = "verified"
-        self.review_log.append({
-            "attestation_id": attestation_id,
-            "action": "verify",
-            "verifier_notes": verifier_notes,
-            "timestamp": time.time(),
-        })
+        self.review_log.append(
+            {
+                "attestation_id": attestation_id,
+                "action": "verify",
+                "verifier_notes": verifier_notes,
+                "timestamp": time.time(),
+            }
+        )
         return True
 
-    def flag_event(self, event_id: str, event_type: str, reason: str,
-                   user_id: str) -> Dict:
+    def flag_event(
+        self, event_id: str, event_type: str, reason: str, user_id: str
+    ) -> dict:
         """Flag an event for notary review before monetization."""
         flag = {
             "flag_id": f"flag-{event_id}",
@@ -88,12 +92,14 @@ class KYINotary:
                 flag["status"] = "approved" if approved else "rejected"
                 flag["notary_notes"] = notary_notes
                 flag["reviewed_at"] = time.time()
-                self.review_log.append({
-                    "flag_id": flag_id,
-                    "action": "approve" if approved else "reject",
-                    "notes": notary_notes,
-                    "timestamp": time.time(),
-                })
+                self.review_log.append(
+                    {
+                        "flag_id": flag_id,
+                        "action": "approve" if approved else "reject",
+                        "notes": notary_notes,
+                        "timestamp": time.time(),
+                    }
+                )
                 return True
         return False
 
@@ -106,21 +112,26 @@ class KYINotary:
                 return True
         return False
 
-    def get_attestation(self, user_id: str) -> Optional[IdentityAttestation]:
+    def get_attestation(self, user_id: str) -> IdentityAttestation | None:
         """Get user's most recent attestation."""
         latest = None
         for att in self.attestations.values():
-            if att.user_id == user_id:
-                if latest is None or att.timestamp > latest.timestamp:
-                    latest = att
+            if att.user_id == user_id and (
+                latest is None or att.timestamp > latest.timestamp
+            ):
+                latest = att
         return latest
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Notary statistics."""
         verified = sum(1 for a in self.attestations.values() if a.status == "verified")
         pending = sum(1 for a in self.attestations.values() if a.status == "pending")
         flagged = len(self.flagged_events)
-        reviewed = sum(1 for f in self.flagged_events if f.get("status") in ("approved", "rejected"))
+        reviewed = sum(
+            1
+            for f in self.flagged_events
+            if f.get("status") in ("approved", "rejected")
+        )
 
         return {
             "total_attestations": len(self.attestations),

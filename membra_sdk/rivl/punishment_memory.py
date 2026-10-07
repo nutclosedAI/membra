@@ -11,19 +11,21 @@ Before generating new output, search memory:
 
 This gives learning without expensive training.
 """
+
 import hashlib
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
 class PunishmentMemory:
     """Retrieves past scored events to inform future generation."""
 
-    def __init__(self, reward_path: str = None):
-        self.reward_path = Path(reward_path or "~/.membra/reward_events.jsonl").expanduser()
+    def __init__(self, reward_path: str | None = None):
+        self.reward_path = Path(
+            reward_path or "~/.membra/reward_events.jsonl"
+        ).expanduser()
 
-    def search(self, prompt: str, limit: int = 10) -> Dict:
+    def search(self, prompt: str, limit: int = 10) -> dict:
         """Search memory for related past events.
 
         Returns:
@@ -95,7 +97,7 @@ class PunishmentMemory:
         addon_parts.append("\n[End RIVL Memory]\n")
         return "\n".join(addon_parts)
 
-    def _extract_warnings(self, failures: List[Dict]) -> List[str]:
+    def _extract_warnings(self, failures: list[dict]) -> list[str]:
         """Extract human-readable warnings from failure events."""
         warnings = []
         for f in failures:
@@ -105,7 +107,9 @@ class PunishmentMemory:
                 if reason == "tests_failed":
                     warnings.append("Ensure all tests pass before submitting")
                 elif reason == "security_failed":
-                    warnings.append("Run security scan — avoid hardcoded secrets, eval, os.system")
+                    warnings.append(
+                        "Run security scan — avoid hardcoded secrets, eval, os.system"
+                    )
                 elif reason == "payment_missing":
                     warnings.append("Verify payment receipt before delivering")
                 elif reason == "consensus_missing":
@@ -117,16 +121,22 @@ class PunishmentMemory:
                 elif reason == "mainnet_without_approval":
                     warnings.append("NEVER deploy to mainnet without explicit approval")
                 elif reason == "loss_of_funds":
-                    warnings.append("CRITICAL: This pattern previously caused loss of funds")
+                    warnings.append(
+                        "CRITICAL: This pattern previously caused loss of funds"
+                    )
                 elif reason == "refund_requested":
-                    warnings.append("Deliver what was promised — refunds hurt reputation")
+                    warnings.append(
+                        "Deliver what was promised — refunds hurt reputation"
+                    )
                 elif reason == "slippage_too_high":
                     warnings.append("Set slippage limits — protect against MEV")
                 elif reason == "unauthorized_contract":
-                    warnings.append("Verify contract addresses — unauthorized contracts are dangerous")
+                    warnings.append(
+                        "Verify contract addresses — unauthorized contracts are dangerous"
+                    )
         return list(dict.fromkeys(warnings))  # Deduplicate while preserving order
 
-    def _extract_suggestions(self, successes: List[Dict]) -> List[str]:
+    def _extract_suggestions(self, successes: list[dict]) -> list[str]:
         """Extract proven patterns from successful events."""
         suggestions = []
         for s in successes:
@@ -134,25 +144,33 @@ class PunishmentMemory:
             for reason in reasons:
                 reason = reason.strip()
                 if reason == "tests_passed":
-                    suggestions.append("Write comprehensive tests — they reliably earn reward")
+                    suggestions.append(
+                        "Write comprehensive tests — they reliably earn reward"
+                    )
                 elif reason == "security_passed":
                     suggestions.append("Security-first approach pays off")
                 elif reason == "payment_verified":
-                    suggestions.append("Always verify Stripe receipt before marking complete")
+                    suggestions.append(
+                        "Always verify Stripe receipt before marking complete"
+                    )
                 elif reason == "consensus_verified":
                     suggestions.append("Validator consensus strengthens proof")
                 elif reason == "artifact_downloaded":
                     suggestions.append("Deliver clean, documented artifacts")
                 elif reason == "verified_profit_after_fees":
-                    suggestions.append("Account for all fees — net profit is what counts")
+                    suggestions.append(
+                        "Account for all fees — net profit is what counts"
+                    )
                 elif reason == "receipt_confirmed_yield":
-                    suggestions.append("Settlement confirmation before yield distribution")
+                    suggestions.append(
+                        "Settlement confirmation before yield distribution"
+                    )
         return list(dict.fromkeys(suggestions))
 
     def _hash(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()
 
-    def _load_events(self) -> List[Dict]:
+    def _load_events(self) -> list[dict]:
         events = []
         if not self.reward_path.exists():
             return events

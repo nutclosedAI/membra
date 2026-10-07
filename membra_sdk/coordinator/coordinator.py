@@ -12,12 +12,10 @@ The coordinator:
 Honest: This is a LOCAL coordinator for demo/testing. Production would use
 a proper message queue (Redis, RabbitMQ) or P2P gossip.
 """
-import hashlib
-import json
-import time
-from typing import Dict, List, Optional
 
-from membra_sdk.scheduler.job_queue import JobQueue, TaskSplit, TaskStatus
+import time
+
+from membra_sdk.scheduler.job_queue import JobQueue
 from membra_sdk.worker.worker_node import WorkerNode
 
 
@@ -26,10 +24,10 @@ class Coordinator:
 
     def __init__(self):
         self.queue = JobQueue()
-        self.workers: Dict[str, WorkerNode] = {}
-        self.worker_heartbeats: Dict[str, float] = {}
-        self.verified_results: Dict[str, dict] = {}
-        self.payment_queue: List[dict] = []
+        self.workers: dict[str, WorkerNode] = {}
+        self.worker_heartbeats: dict[str, float] = {}
+        self.verified_results: dict[str, dict] = {}
+        self.payment_queue: list[dict] = []
 
     def register_worker(self, worker: WorkerNode) -> bool:
         """Register a worker node."""
@@ -37,8 +35,9 @@ class Coordinator:
         self.worker_heartbeats[worker.worker_id] = time.time()
         return True
 
-    def submit_job(self, job_type: str, payload: dict,
-                   split_strategy: str = "by_item") -> str:
+    def submit_job(
+        self, job_type: str, payload: dict, split_strategy: str = "by_item"
+    ) -> str:
         """Submit a job and get job ID."""
         tasks = self.queue.submit_job(job_type, payload, split_strategy)
         job_id = tasks[0].job_id if tasks else ""
@@ -61,14 +60,18 @@ class Coordinator:
     def collect_results(self, job_id: str) -> dict:
         """Collect and verify all results for a job."""
         # Verify any completed results first
-        job_tasks = [t for t in self.queue.tasks.values() if t.job_id == job_id]
+        [t for t in self.queue.tasks.values() if t.job_id == job_id]
         results = self.queue.job_results.get(job_id, [])
 
         for result in results:
             task_id = result["task_id"]
             proof_hash = result["proof_hash"]
             task = self.queue.tasks.get(task_id)
-            if task and task.status.value == "completed" and task.proof_hash == proof_hash:
+            if (
+                task
+                and task.status.value == "completed"
+                and task.proof_hash == proof_hash
+            ):
                 self.queue.mark_verified(task_id)
 
         # Re-check status after verification
@@ -90,19 +93,21 @@ class Coordinator:
             for result in results:
                 task = self.queue.tasks.get(result["task_id"])
                 if task and task.status.value == "verified":
-                    self.payment_queue.append({
-                        "task_id": task.task_id,
-                        "worker_id": task.assigned_worker,
-                        "amount_usd": task.cost_estimate / 100,
-                        "job_id": job_id,
-                        "proof_hash": task.proof_hash,
-                        "verified_at": time.time(),
-                    })
+                    self.payment_queue.append(
+                        {
+                            "task_id": task.task_id,
+                            "worker_id": task.assigned_worker,
+                            "amount_usd": task.cost_estimate / 100,
+                            "job_id": job_id,
+                            "proof_hash": task.proof_hash,
+                            "verified_at": time.time(),
+                        }
+                    )
             response["payments_ready"] = len(self.payment_queue)
 
         return response
 
-    def distribute_payments(self) -> List[dict]:
+    def distribute_payments(self) -> list[dict]:
         """Distribute payments for verified work.
 
         In production, this would call Stripe Connect to transfer funds.
@@ -110,13 +115,15 @@ class Coordinator:
         payments = []
         for p in self.payment_queue:
             # Simulation: record payment
-            payments.append({
-                "worker_id": p["worker_id"],
-                "amount_usd": p["amount_usd"],
-                "task_id": p["task_id"],
-                "status": "paid_simulated",
-                "note": "Real payout requires Stripe Connect integration",
-            })
+            payments.append(
+                {
+                    "worker_id": p["worker_id"],
+                    "amount_usd": p["amount_usd"],
+                    "task_id": p["task_id"],
+                    "status": "paid_simulated",
+                    "note": "Real payout requires Stripe Connect integration",
+                }
+            )
 
         self.payment_queue = []
         return payments
@@ -124,7 +131,8 @@ class Coordinator:
     def get_cluster_status(self) -> dict:
         """Status of the entire worker cluster."""
         active_workers = sum(
-            1 for w in self.workers.values()
+            1
+            for w in self.workers.values()
             if time.time() - self.worker_heartbeats.get(w.worker_id, 0) < 300
         )
 

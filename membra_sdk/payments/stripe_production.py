@@ -9,14 +9,12 @@
 
 This module ONLY works in PRODUCTION mode. SIMULATION mode uses mock receipts.
 """
+
 import os
-import time
-from typing import Dict, Optional
 
 
 class StripeProductionError(Exception):
     """Raised when Stripe production requirements are not met."""
-    pass
 
 
 class StripeProductionClient:
@@ -59,8 +57,9 @@ class StripeProductionClient:
                 "Never commit keys to source control."
             )
 
-    def create_payment_intent(self, amount_usd: float, buyer_email: str,
-                              metadata: Dict) -> Dict:
+    def create_payment_intent(
+        self, amount_usd: float, buyer_email: str, metadata: dict
+    ) -> dict:
         """Create a Stripe PaymentIntent for a build bounty.
 
         Returns payment intent ID and client secret for frontend.
@@ -70,6 +69,7 @@ class StripeProductionClient:
 
         try:
             import stripe
+
             stripe.api_key = self.api_key
 
             intent = stripe.PaymentIntent.create(
@@ -89,16 +89,17 @@ class StripeProductionClient:
                 "status": intent.status,
                 "amount": amount_usd,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — API failure becomes an error result
             return {"error": str(e)}
 
-    def verify_payment(self, payment_intent_id: str) -> Dict:
+    def verify_payment(self, payment_intent_id: str) -> dict:
         """Verify a PaymentIntent succeeded and retrieve receipt details."""
         if self.mode != "production":
             return {"verified": False, "error": "Stripe disabled in simulation mode"}
 
         try:
             import stripe
+
             stripe.api_key = self.api_key
 
             intent = stripe.PaymentIntent.retrieve(payment_intent_id)
@@ -127,17 +128,19 @@ class StripeProductionClient:
                 "status": intent.status,
                 "created": intent.created,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — API failure becomes an error result
             return {"verified": False, "error": str(e)}
 
-    def create_payout(self, builder_account_id: str, amount_usd: float,
-                     job_id: str) -> Dict:
+    def create_payout(
+        self, builder_account_id: str, amount_usd: float, job_id: str
+    ) -> dict:
         """Create a Stripe Connect payout to a builder's connected account."""
         if self.mode != "production":
             return {"error": "Stripe disabled in simulation mode"}
 
         try:
             import stripe
+
             stripe.api_key = self.api_key
 
             transfer = stripe.Transfer.create(
@@ -155,17 +158,17 @@ class StripeProductionClient:
                 "status": transfer.status,
                 "destination": builder_account_id,
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — API failure becomes an error result
             return {"error": str(e)}
 
-    def handle_webhook(self, payload: bytes, signature: str,
-                      secret: str) -> Dict:
+    def handle_webhook(self, payload: bytes, signature: str, secret: str) -> dict:
         """Handle Stripe webhook event."""
         if self.mode != "production":
             return {"handled": False, "error": "Stripe disabled in simulation mode"}
 
         try:
             import stripe
+
             event = stripe.Webhook.construct_event(payload, signature, secret)
 
             if event.type == "payment_intent.succeeded":
@@ -183,5 +186,5 @@ class StripeProductionClient:
                 }
             else:
                 return {"handled": True, "event": event.type, "note": "no action"}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"handled": False, "error": str(e)}

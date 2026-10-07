@@ -7,22 +7,27 @@ The judge:
   4. Blocks outputs that fail safety/security thresholds
   5. Provides improvement suggestions
 """
+
 import re
 import time
-from typing import Dict, List
+from typing import ClassVar
 
 
 class JudgeBrain:
     """Scores and validates specialist outputs before synthesis."""
 
-    SCORE_DIMENSIONS = ["accuracy", "completeness", "style", "safety"]
+    SCORE_DIMENSIONS: ClassVar[list[str]] = [
+        "accuracy",
+        "completeness",
+        "style",
+        "safety",
+    ]
 
     def __init__(self, safety_threshold: float = 0.9):
         self.safety_threshold = safety_threshold
-        self.judgment_log: List[Dict] = []
+        self.judgment_log: list[dict] = []
 
-    def score(self, worker_id: str, role: str, output: any,
-              expected_task: str) -> Dict:
+    def score(self, worker_id: str, role: str, output: any, expected_task: str) -> dict:
         """Score a specialist output on multiple dimensions.
 
         Returns:
@@ -36,7 +41,9 @@ class JudgeBrain:
 
         # Completeness
         output_text = str(output)
-        dimensions["completeness"] = self._score_completeness(output_text, expected_task)
+        dimensions["completeness"] = self._score_completeness(
+            output_text, expected_task
+        )
 
         # Style
         dimensions["style"] = self._score_style(output_text, role)
@@ -45,10 +52,7 @@ class JudgeBrain:
         dimensions["accuracy"] = 0.85  # Assume reasonable unless contradicted
 
         overall = sum(dimensions.values()) / len(dimensions)
-        passed = (
-            dimensions["safety"] >= self.safety_threshold and
-            overall >= 0.6
-        )
+        passed = dimensions["safety"] >= self.safety_threshold and overall >= 0.6
 
         judgment = {
             "judgment_id": f"jdg-{int(time.time())}-{worker_id}",
@@ -64,7 +68,7 @@ class JudgeBrain:
         self.judgment_log.append(judgment)
         return judgment
 
-    def compare(self, outputs: List[Dict]) -> Dict:
+    def compare(self, outputs: list[dict]) -> dict:
         """Compare multiple specialist outputs and rank them.
 
         Returns consensus recommendation.
@@ -97,7 +101,7 @@ class JudgeBrain:
             "all_scores": scores,
         }
 
-    def _check_safety(self, output: any) -> List[str]:
+    def _check_safety(self, output: any) -> list[str]:
         """Check for safety issues in output."""
         flags = []
         text = str(output).lower()
@@ -136,7 +140,7 @@ class JudgeBrain:
             score += 0.1
         if "test" in text.lower():
             score += 0.05
-        if "#" in text or "\"\"\"" in text:
+        if "#" in text or '"""' in text:
             score += 0.05
 
         return min(score, 1.0)
@@ -163,7 +167,7 @@ class JudgeBrain:
 
         return min(score, 1.0)
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Judge statistics."""
         total = len(self.judgment_log)
         passed = sum(1 for j in self.judgment_log if j["passed"])

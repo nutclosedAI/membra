@@ -12,7 +12,8 @@ Validator roles:
 
 A ValidatorSet runs all validators and collects votes.
 """
-from typing import Dict, List
+
+from typing import ClassVar
 
 
 class Validator:
@@ -22,8 +23,13 @@ class Validator:
         self.validator_id = validator_id
         self.role = role
 
-    def validate(self, job_spec: Dict, artifacts: List[Dict],
-                 logs: str = "", test_results: Dict = None) -> Dict:
+    def validate(
+        self,
+        job_spec: dict,
+        artifacts: list[dict],
+        logs: str = "",
+        test_results: dict | None = None,
+    ) -> dict:
         """Run this validator's checks and return a vote."""
         test_results = test_results or {}
 
@@ -40,36 +46,37 @@ class Validator:
         else:
             return {"vote": "reject", "reason": f"Unknown validator role: {self.role}"}
 
-    def _validate_structure(self, job_spec: Dict, artifacts: List[Dict]) -> Dict:
+    def _validate_structure(self, job_spec: dict, artifacts: list[dict]) -> dict:
         expected = set(job_spec.get("expected_outputs", []))
-        found = set(a.get("path", "") for a in artifacts)
+        found = {a.get("path", "") for a in artifacts}
         missing = expected - found
         if not missing:
             return {"vote": "accept", "reason": "All expected files present."}
         return {"vote": "reject", "reason": f"Missing expected files: {missing}"}
 
-    def _validate_security(self, artifacts: List[Dict]) -> Dict:
-        import re
-        issues = []
+    def _validate_security(self, artifacts: list[dict]) -> dict:
         for artifact in artifacts:
             path = artifact.get("path", "")
-            if path.endswith(".py") or path.endswith(".js") or path.endswith(".ts"):
+            if path.endswith((".py", ".js", ".ts")):
                 # In production, read the file. Here we check metadata.
                 pass
         # Check for dangerous patterns in any code files
         # This is a simplified check
         return {"vote": "accept", "reason": "No obvious security issues in metadata."}
 
-    def _validate_usefulness(self, job_spec: Dict, artifacts: List[Dict]) -> Dict:
-        intent = job_spec.get("intent", "").lower()
+    def _validate_usefulness(self, job_spec: dict, artifacts: list[dict]) -> dict:
+        job_spec.get("intent", "").lower()
         if not artifacts:
             return {"vote": "reject", "reason": "No artifacts produced."}
         # Simple heuristic: if there are artifacts, it's potentially useful
         if len(artifacts) >= 2:
-            return {"vote": "accept", "reason": "Multiple artifacts suggest useful output."}
+            return {
+                "vote": "accept",
+                "reason": "Multiple artifacts suggest useful output.",
+            }
         return {"vote": "accept", "reason": "At least one artifact produced."}
 
-    def _validate_tests(self, test_results: Dict) -> Dict:
+    def _validate_tests(self, test_results: dict) -> dict:
         passed = test_results.get("passed", 0)
         total = test_results.get("total", 0)
         if total == 0:
@@ -78,7 +85,7 @@ class Validator:
             return {"vote": "accept", "reason": f"All {total} tests passed."}
         return {"vote": "reject", "reason": f"Tests failed: {passed}/{total}"}
 
-    def _validate_policy(self, job_spec: Dict, artifacts: List[Dict]) -> Dict:
+    def _validate_policy(self, job_spec: dict, artifacts: list[dict]) -> dict:
         policy = job_spec.get("policy", {})
         if policy.get("mainnet") and not policy.get("mainnet_explicitly_allowed"):
             return {"vote": "reject", "reason": "Mainnet policy violation."}
@@ -88,10 +95,20 @@ class Validator:
 class ValidatorSet:
     """A collection of validators that run together."""
 
-    DEFAULT_ROLES = ["structure", "security", "usefulness", "tests", "policy"]
+    DEFAULT_ROLES: ClassVar[list[str]] = [
+        "structure",
+        "security",
+        "usefulness",
+        "tests",
+        "policy",
+    ]
 
-    def __init__(self, validator_ids: List[str] = None):
-        self.validator_ids = validator_ids or ["validator_a", "validator_b", "validator_c"]
+    def __init__(self, validator_ids: list[str] | None = None):
+        self.validator_ids = validator_ids or [
+            "validator_a",
+            "validator_b",
+            "validator_c",
+        ]
         self.validators = []
 
     def add_default_validators(self):
@@ -103,8 +120,13 @@ class ValidatorSet:
     def add_validator(self, validator_id: str, role: str):
         self.validators.append(Validator(validator_id, role))
 
-    def run(self, job_spec: Dict, artifacts: List[Dict],
-            logs: str = "", test_results: Dict = None) -> List[Dict]:
+    def run(
+        self,
+        job_spec: dict,
+        artifacts: list[dict],
+        logs: str = "",
+        test_results: dict | None = None,
+    ) -> list[dict]:
         """Run all validators and return votes."""
         if not self.validators:
             self.add_default_validators()

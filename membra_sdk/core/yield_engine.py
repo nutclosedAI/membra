@@ -9,26 +9,26 @@ Yield is derived from:
 - File type rarity
 - Local resource cost to process
 """
-import hashlib
+
 import os
-from typing import Dict
+from typing import ClassVar
 
 
 class YieldEngine:
     """Estimates yield from file content for proof-of-yield consensus."""
 
     # Base yield rates per file type (arbitrary units)
-    TYPE_RATES = {
-        ".rs": 0.05,    # Rust — high value
-        ".sol": 0.08,   # Solidity — very high value
-        ".go": 0.04,    # Go — medium value
-        ".py": 0.03,    # Python — common
-        ".js": 0.02,    # JavaScript — very common
-        ".ts": 0.025,   # TypeScript — medium
-        ".cpp": 0.04,   # C++ — high compute value
+    TYPE_RATES: ClassVar[dict[str, float]] = {
+        ".rs": 0.05,  # Rust — high value
+        ".sol": 0.08,  # Solidity — very high value
+        ".go": 0.04,  # Go — medium value
+        ".py": 0.03,  # Python — common
+        ".js": 0.02,  # JavaScript — very common
+        ".ts": 0.025,  # TypeScript — medium
+        ".cpp": 0.04,  # C++ — high compute value
         ".c": 0.03,
-        ".md": 0.01,    # Markdown — low
-        ".json": 0.005, # JSON — very low
+        ".md": 0.01,  # Markdown — low
+        ".json": 0.005,  # JSON — very low
         ".yaml": 0.005,
         ".toml": 0.01,
     }
@@ -40,8 +40,10 @@ class YieldEngine:
 
         # Complexity factor
         lines = content.count("\n") + 1
-        functions = content.count("def ") + content.count("fn ") + content.count("function ")
-        imports = content.count("import ") + content.count("use ") + content.count("#include ")
+        functions = (
+            content.count("def ") + content.count("fn ") + content.count("function ")
+        )
+        (content.count("import ") + content.count("use ") + content.count("#include "))
         comments = content.count("//") + content.count("# ") + content.count("/*")
 
         # Scarcity factor (rarer types earn more)

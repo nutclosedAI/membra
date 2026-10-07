@@ -1,16 +1,16 @@
 """MEMBRA LLMGPT — From-scratch GPT for terminal-native inference and Solana validation."""
 
 from .gpt import LLMGPT, GPTConfig
-from .tokenizer import ByteTokenizer
-from .terminal_chat import TerminalChat
-from .validator import ValidatorEngine
 from .solana_bridge import SolanaValidatorBridge
+from .terminal_chat import TerminalChat
+from .tokenizer import ByteTokenizer
+from .validator import ValidatorEngine
 
 __all__ = [
     "LLMGPT",
-    "GPTConfig",
     "ByteTokenizer",
+    "GPTConfig",
+    "SolanaValidatorBridge",
     "TerminalChat",
     "ValidatorEngine",
-    "SolanaValidatorBridge",
 ]

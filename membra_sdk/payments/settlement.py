@@ -8,9 +8,9 @@ Settlement is NOT the same as a receipt. Settlement means:
 - Funds arrived in escrow or builder account
 - The transaction is irreversible (or within dispute window)
 """
+
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 
 @dataclass
@@ -22,19 +22,26 @@ class SettlementRecord:
     from_account: str
     to_account: str
     processor: str
-    status: str          # "pending", "cleared", "settled", "disputed", "reversed"
-    confirmed_at: Optional[float] = None
-    metadata: Dict = field(default_factory=dict)
+    status: str  # "pending", "cleared", "settled", "disputed", "reversed"
+    confirmed_at: float | None = None
+    metadata: dict = field(default_factory=dict)
 
 
 class SettlementTracker:
     """Tracks whether payments actually settled (funds moved)."""
 
     def __init__(self):
-        self.settlements: Dict[str, SettlementRecord] = {}
+        self.settlements: dict[str, SettlementRecord] = {}
 
-    def record_settlement(self, job_id: str, receipt_id: str, amount: float,
-                          from_account: str, to_account: str, processor: str) -> SettlementRecord:
+    def record_settlement(
+        self,
+        job_id: str,
+        receipt_id: str,
+        amount: float,
+        from_account: str,
+        to_account: str,
+        processor: str,
+    ) -> SettlementRecord:
         """Record that a payment settlement occurred."""
         settlement = SettlementRecord(
             settlement_id=f"set-{job_id}",
@@ -49,7 +56,7 @@ class SettlementTracker:
         self.settlements[settlement.settlement_id] = settlement
         return settlement
 
-    def confirm_settlement(self, settlement_id: str) -> Optional[SettlementRecord]:
+    def confirm_settlement(self, settlement_id: str) -> SettlementRecord | None:
         """Confirm settlement completed (funds cleared)."""
         settlement = self.settlements.get(settlement_id)
         if not settlement:
@@ -63,5 +70,5 @@ class SettlementTracker:
         settlement = self.settlements.get(f"set-{job_id}")
         return settlement is not None and settlement.status == "settled"
 
-    def get_settlement(self, job_id: str) -> Optional[SettlementRecord]:
+    def get_settlement(self, job_id: str) -> SettlementRecord | None:
         return self.settlements.get(f"set-{job_id}")

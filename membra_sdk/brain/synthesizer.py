@@ -7,20 +7,21 @@ The synthesizer:
   4. Ensures consistency across merged components
   5. Produces final answer + buildable artifact
 """
+
 import hashlib
 import json
 import time
-from typing import Dict, List
 
 
 class SynthesizerBrain:
     """Merges multiple specialist outputs into one final result."""
 
     def __init__(self):
-        self.synthesis_history: List[Dict] = []
+        self.synthesis_history: list[dict] = []
 
-    def synthesize(self, plan: Dict, specialist_outputs: List[Dict],
-                   judge_scores: Dict[str, float]) -> Dict:
+    def synthesize(
+        self, plan: dict, specialist_outputs: list[dict], judge_scores: dict[str, float]
+    ) -> dict:
         """Merge specialist outputs into final artifact.
 
         Args:
@@ -34,7 +35,8 @@ class SynthesizerBrain:
         # Filter outputs that meet quality threshold
         threshold = plan.get("quality_threshold", 0.75)
         valid_outputs = [
-            out for out in specialist_outputs
+            out
+            for out in specialist_outputs
             if judge_scores.get(out.get("worker_id", ""), 0) >= threshold
         ]
 
@@ -82,32 +84,44 @@ class SynthesizerBrain:
         self.synthesis_history.append(result)
         return result
 
-    def _merge_outputs(self, plan: Dict, outputs: List[Dict]) -> Dict:
+    def _merge_outputs(self, plan: dict, outputs: list[dict]) -> dict:
         """Merge outputs based on their roles."""
-        merged = {"type": "artifact", "code": "", "docs": "", "tests": "", "security_notes": ""}
+        merged = {
+            "type": "artifact",
+            "code": "",
+            "docs": "",
+            "tests": "",
+            "security_notes": "",
+        }
 
         for out in outputs:
             role = out.get("role", "")
             content = out.get("result", "")
 
             if role == "coder":
-                merged["code"] = content.get("code", str(content)) if isinstance(content, dict) else str(content)
+                merged["code"] = (
+                    content.get("code", str(content))
+                    if isinstance(content, dict)
+                    else str(content)
+                )
             elif role == "docs":
                 merged["docs"] = content if isinstance(content, str) else str(content)
             elif role == "tester":
                 merged["tests"] = content if isinstance(content, str) else str(content)
             elif role == "security":
-                merged["security_notes"] = content if isinstance(content, str) else str(content)
+                merged["security_notes"] = (
+                    content if isinstance(content, str) else str(content)
+                )
             elif role == "researcher":
-                merged["research"] = content if isinstance(content, str) else str(content)
+                merged["research"] = (
+                    content if isinstance(content, str) else str(content)
+                )
 
         # Build combined artifact
         if merged["code"]:
             final = f"{merged['docs']}\n\n{merged['code']}\n\n# Tests\n{merged['tests']}\n\n# Security Notes\n{merged['security_notes']}"
         else:
-            final = "\n\n".join(
-                str(out.get("result", "")) for out in outputs
-            )
+            final = "\n\n".join(str(out.get("result", "")) for out in outputs)
 
         merged["combined"] = final.strip()
         return merged
