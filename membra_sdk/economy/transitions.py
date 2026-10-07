@@ -73,14 +73,17 @@ def _spawn(
 def transition(
     eso: EconomicStateObject,
     policy: Policy | None = None,
+    **eval_kwargs: float | None,
 ) -> tuple[EconomicStateObject, EconomicStateObject | None]:
     """Run one transition step on an evaluated act.
+
+    `eval_kwargs` forwards evaluator hints (quality_hint, etc.).
 
     Returns (updated_act, spawned_act_or_None). The caller records the
     spawned act into the graph — `eso` itself only links its id.
     """
     policy = policy or Policy()
-    outcome = evaluate_outcome(eso)
+    outcome = evaluate_outcome(eso, **eval_kwargs)
     eso.classify(outcome)
 
     if outcome.confidence < policy.min_confidence:
