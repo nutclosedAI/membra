@@ -152,6 +152,41 @@ Once thousands of state objects exist, `D` supports:
   prediction that feeds back into authorization/risk/pricing.
   The `membra_sdk.bro` fingerprint machinery is the Φ extractor for it.
 
+### Archetype discovery (archetypes.py) — implemented
+
+The bridge is built, same controlled-experiment discipline as the BRO
+benchmark: four KNOWN economic archetypes emit acts through the
+runtime (hidden implementations), and a z-scored kNN bank over an
+18-feature Φ per series — outcome-state shares, vector means,
+consequence cadence, quality/deviation *trends* — classifies held-out
+seed series blind:
+
+| archetype | signature | consequence distribution |
+|---|---|---|
+| `reliable_merchant` | fulfilled=1.0, D~0 | `NONE` 100% |
+| `chronic_late_shipper` | partial-heavy, low T | `COMPENSATION` ~77% |
+| `quality_drifter` | falling Q, rising D | `COMP`+`DISPUTE` escalating |
+| `flaky_evidence` | high U, deferred | `NONE` ~89% |
+
+OOS archetype accuracy: **1.00** (train seeds 0-5, eval seeds 100/200).
+`conditional_outcomes()` is the measured `P(consequence | archetype)`
+— the next-state model, not a guaranteed prediction.
+
+### Outcome API (api.py) — implemented
+
+Pure-stdlib HTTP surface over `EconomicGraph` (`python -m
+membra_sdk.economy.api` or `make_server(graph, port)`):
+
+```
+POST /promises  /obligations  /evidence  /observations
+POST /outcomes/evaluate  /state-transitions  /consequences
+GET  /acts/:id[/state|outcome|evidence|causal-chain]
+GET  /graph/summary  /dataset        # D = {(P,E,O,C)}
+```
+
+`GET /acts/:id/causal-chain` returns the full stage chain plus parent
+chain and spawned children — the economic causality endpoint.
+
 ## Boundaries
 
 - This is **not** a payment protocol, clearing layer, or
@@ -165,6 +200,9 @@ Once thousands of state objects exist, `D` supports:
 ## Run it
 
 ```bash
-python examples/economy_demo.py   # the $100/6pm-delivery recursion
-python tests/test_economy.py      # 7 checks
+python examples/economy_demo.py      # the $100/6pm-delivery recursion
+python examples/archetype_demo.py    # blind archetype discovery + P(O|EA,Φ,S)
+python tests/test_economy.py         # 7 checks
+python tests/test_economy_api.py     # 5 checks (API lifecycle + archetypes)
+python -m membra_sdk.economy.api     # serve the Outcome API on :8080
 ```

@@ -16,6 +16,15 @@ where X is the economic state, E new evidence, O the evaluated
 outcome, and P the governing policy. See docs/ECONOMIC_STATE_GRAPH.md.
 """
 
+from .api import make_server, serve
+from .archetypes import (
+    AGENT_ZOO,
+    build_archetype_bank,
+    conditional_outcomes,
+    evaluate_archetypes,
+    fingerprint_series,
+    run_series,
+)
 from .capability import Capability
 from .graph import EconomicGraph
 from .outcome import OutcomeVector, evaluate_outcome
@@ -32,6 +41,7 @@ from .state import (
 from .transitions import Policy, transition
 
 __all__ = [
+    "AGENT_ZOO",
     "Authorization",
     "Capability",
     "Consequence",
@@ -44,6 +54,13 @@ __all__ = [
     "Promise",
     "Settlement",
     "SettlementStatus",
+    "build_archetype_bank",
+    "conditional_outcomes",
+    "evaluate_archetypes",
     "evaluate_outcome",
+    "fingerprint_series",
+    "make_server",
+    "run_series",
+    "serve",
     "transition",
 ]
