@@ -2,25 +2,23 @@
 
 Runs AFTER Stripe confirms payment. Not before.
 """
+
 import hashlib
 import json
 import os
 import subprocess
-import tempfile
 import time
 import zipfile
-from pathlib import Path
-from typing import Dict, List, Optional
 
 
 class ArtifactBuilder:
     """Builds a real artifact after payment is confirmed."""
 
-    def __init__(self, workspace: str = None):
+    def __init__(self, workspace: str | None = None):
         self.workspace = workspace or os.path.expanduser("~/.membra/builds")
         os.makedirs(self.workspace, exist_ok=True)
 
-    def build(self, job_id: str, spec: Dict) -> Dict:
+    def build(self, job_id: str, spec: dict) -> dict:
         """Build artifact based on job specification.
 
         Returns build result with artifact path, hash, test results.
@@ -56,7 +54,7 @@ class ArtifactBuilder:
             "status": "built" if test_result.get("passed") else "test_failed",
         }
 
-    def _generate_artifact(self, artifact_type: str, spec: Dict) -> str:
+    def _generate_artifact(self, artifact_type: str, spec: dict) -> str:
         """Generate artifact content based on type and spec."""
         if artifact_type == "python_script":
             return self._generate_python_script(spec)
@@ -67,7 +65,7 @@ class ArtifactBuilder:
         else:
             return spec.get("code", "# Default artifact\n")
 
-    def _generate_python_script(self, spec: Dict) -> str:
+    def _generate_python_script(self, spec: dict) -> str:
         """Generate a Python script artifact."""
         description = spec.get("description", "A generated Python utility")
         function_name = spec.get("function_name", "main")
@@ -89,8 +87,8 @@ if __name__ == "__main__":
     print(json.dumps(result, indent=2))
 '''
 
-    def _generate_solana_contract(self, spec: Dict) -> str:
-        return '''use anchor_lang::prelude::*;
+    def _generate_solana_contract(self, spec: dict) -> str:
+        return """use anchor_lang::prelude::*;
 
 #[program]
 pub mod membra_generated {
@@ -104,10 +102,10 @@ pub mod membra_generated {
 
 #[derive(Accounts)]
 pub struct Initialize {}
-'''
+"""
 
-    def _generate_rust_module(self, spec: Dict) -> str:
-        return '''pub fn membra_generated_function() -> String {
+    def _generate_rust_module(self, spec: dict) -> str:
+        return """pub fn membra_generated_function() -> String {
     "Hello from MEMBRA".to_string()
 }
 
@@ -120,9 +118,11 @@ mod tests {
         assert_eq!(membra_generated_function(), "Hello from MEMBRA");
     }
 }
-'''
+"""
 
-    def _run_tests(self, build_dir: str, filename: str, test_commands: List[str]) -> Dict:
+    def _run_tests(
+        self, build_dir: str, filename: str, test_commands: list[str]
+    ) -> dict:
         """Run tests on the artifact."""
         if not test_commands:
             # Default: try to run the file with Python
@@ -134,6 +134,7 @@ mod tests {
                 cwd=build_dir,
                 capture_output=True,
                 text=True,
+                check=False,
                 timeout=30,
             )
             return {
@@ -143,14 +144,14 @@ mod tests {
                 "stderr": result.stderr[:1000],
                 "command": " ".join(test_commands),
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {
                 "passed": False,
                 "error": str(e),
                 "command": " ".join(test_commands),
             }
 
-    def generate_report_zip(self, build_result: Dict, payment: Dict) -> str:
+    def generate_report_zip(self, build_result: dict, payment: dict) -> str:
         """Generate a downloadable ZIP report for the buyer.
 
         Contains:

@@ -7,8 +7,8 @@ Usage:
         --model llama3.2:3b \
         --role reviewer
 """
+
 import argparse
-import json
 import sys
 import time
 
@@ -43,12 +43,14 @@ class WorkerClient:
                 timeout=10,
             )
             if resp.status_code == 200:
-                print(f"[worker:{self.worker_id}] Registered with brain at {self.brain_url}")
+                print(
+                    f"[worker:{self.worker_id}] Registered with brain at {self.brain_url}"
+                )
                 return True
             else:
                 print(f"[worker:{self.worker_id}] Registration failed: {resp.text}")
                 return False
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — network failure becomes False result
             print(f"[worker:{self.worker_id}] Cannot reach brain: {e}")
             return False
 
@@ -64,7 +66,7 @@ class WorkerClient:
                 },
                 timeout=5,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 — heartbeat is best-effort
             pass
 
     def poll_and_work(self):
@@ -100,13 +102,15 @@ class WorkerClient:
             )
 
             if submit_resp.status_code == 200:
-                print(f"[worker:{self.worker_id}] Submitted result for {task_id[:20]}...")
+                print(
+                    f"[worker:{self.worker_id}] Submitted result for {task_id[:20]}..."
+                )
             else:
                 print(f"[worker:{self.worker_id}] Submit failed: {submit_resp.text}")
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — poll/work failure becomes False result
             print(f"[worker:{self.worker_id}] Error during poll/work: {e}")
             return False
 
@@ -129,10 +133,12 @@ class WorkerClient:
 
         prompt = role_prompts.get(self.role, f"Task: {prompt_text}")
 
-        return self.worker._run_prompt({
-            "prompt": prompt,
-            "model": self.model,
-        })
+        return self.worker._run_prompt(
+            {
+                "prompt": prompt,
+                "model": self.model,
+            }
+        )
 
     def run(self, poll_interval: float = 2.0):
         """Main loop: register, then poll for tasks forever."""
@@ -140,7 +146,9 @@ class WorkerClient:
             print(f"[worker:{self.worker_id}] Could not register. Exiting.")
             return 1
 
-        print(f"[worker:{self.worker_id}] Starting poll loop (interval: {poll_interval}s)")
+        print(
+            f"[worker:{self.worker_id}] Starting poll loop (interval: {poll_interval}s)"
+        )
         print(f"[worker:{self.worker_id}] Press Ctrl+C to stop")
 
         try:
@@ -162,11 +170,19 @@ class WorkerClient:
 
 def main():
     parser = argparse.ArgumentParser(description="MEMBRA Worker Client")
-    parser.add_argument("--brain", required=True, help="Brain server URL (e.g., http://192.168.1.20:7777)")
+    parser.add_argument(
+        "--brain",
+        required=True,
+        help="Brain server URL (e.g., http://192.168.1.20:7777)",
+    )
     parser.add_argument("--worker-id", required=True, help="Unique worker ID")
     parser.add_argument("--model", default="llama3.2:3b", help="Ollama model to use")
-    parser.add_argument("--role", default="general", help="Worker role (coder, reviewer, tester, docs)")
-    parser.add_argument("--poll-interval", type=float, default=2.0, help="Poll interval in seconds")
+    parser.add_argument(
+        "--role", default="general", help="Worker role (coder, reviewer, tester, docs)"
+    )
+    parser.add_argument(
+        "--poll-interval", type=float, default=2.0, help="Poll interval in seconds"
+    )
     args = parser.parse_args()
 
     client = WorkerClient(

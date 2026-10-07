@@ -9,8 +9,8 @@ Unlike BPE which needs a training corpus, byte-level tokenization:
 This is the tokenizer used by GPT-2 before BPE merge rules are applied.
 For small models and terminal use, it's fast, correct, and zero-dependency.
 """
+
 import json
-from typing import List
 
 
 class ByteTokenizer:
@@ -21,25 +21,25 @@ class ByteTokenizer:
         self.bos_token = 256  # sentinel, not in vocab
         self.eos_token = 257  # sentinel, not in vocab
 
-    def encode(self, text: str) -> List[int]:
+    def encode(self, text: str) -> list[int]:
         """Encode string to list of byte values."""
         return list(text.encode("utf-8"))
 
-    def decode(self, tokens: List[int]) -> str:
+    def decode(self, tokens: list[int]) -> str:
         """Decode list of byte values to string."""
         # Filter valid byte values
         bytes_data = bytes(t for t in tokens if 0 <= t < 256)
         return bytes_data.decode("utf-8", errors="replace")
 
-    def encode_with_bos(self, text: str) -> List[int]:
+    def encode_with_bos(self, text: str) -> list[int]:
         """Encode with beginning-of-sequence marker."""
         return [self.bos_token] + self.encode(text)
 
-    def encode_with_eos(self, text: str) -> List[int]:
+    def encode_with_eos(self, text: str) -> list[int]:
         """Encode with end-of-sequence marker."""
         return self.encode(text) + [self.eos_token]
 
-    def encode_full(self, text: str) -> List[int]:
+    def encode_full(self, text: str) -> list[int]:
         """Encode with both BOS and EOS markers."""
         return [self.bos_token] + self.encode(text) + [self.eos_token]
 

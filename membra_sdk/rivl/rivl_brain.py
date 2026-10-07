@@ -12,13 +12,12 @@ Flow:
 
 This is the full RIVL-MoA integration.
 """
-from typing import Dict, List
 
+from membra_sdk.brain.judge import JudgeBrain
 from membra_sdk.brain.router import RouterBrain
 from membra_sdk.brain.synthesizer import SynthesizerBrain
-from membra_sdk.brain.judge import JudgeBrain
-from membra_sdk.rivl.reward_engine import RIVLRewardEngine
 from membra_sdk.rivl.punishment_memory import PunishmentMemory
+from membra_sdk.rivl.reward_engine import RIVLRewardEngine
 from membra_sdk.rivl.verifier_stack import VerifierStack
 from membra_sdk.worker.worker_node import WorkerNode
 
@@ -33,14 +32,14 @@ class RIVLBrain:
         self.verifier = VerifierStack()
         self.reward = RIVLRewardEngine()
         self.memory = PunishmentMemory()
-        self.workers: Dict[str, WorkerNode] = {}
+        self.workers: dict[str, WorkerNode] = {}
 
-    def register_worker(self, worker: WorkerNode, role: str = None):
+    def register_worker(self, worker: WorkerNode, role: str | None = None):
         if role:
             worker.specialist_role = role
         self.workers[worker.worker_id] = worker
 
-    def process(self, prompt: str, run_verification: bool = True) -> Dict:
+    def process(self, prompt: str, run_verification: bool = True) -> dict:
         """Process prompt through full RIVL-MoA pipeline."""
         print(f"[RIVL] Processing: {prompt[:60]}...")
 
@@ -66,28 +65,38 @@ class RIVLBrain:
 
             # Add memory to task prompt
             task_prompt = self._build_prompt_with_memory(subtask, memory_addon)
-            result = worker._run_prompt({"prompt": task_prompt, "model": subtask.get("model", "llama3.1:8b")})
+            result = worker._run_prompt(
+                {"prompt": task_prompt, "model": subtask.get("model", "llama3.1:8b")}
+            )
 
-            specialist_outputs.append({
-                "worker_id": worker.worker_id,
-                "role": role,
-                "task_id": subtask["id"],
-                "result": result,
-            })
+            specialist_outputs.append(
+                {
+                    "worker_id": worker.worker_id,
+                    "role": role,
+                    "task_id": subtask["id"],
+                    "result": result,
+                }
+            )
             print(f"  ✅ {role} completed")
 
         # 4. Verifier checks
         print("[RIVL] 4. Verifier Stack checking...")
         verification_results = []
         for out in specialist_outputs:
-            code = out["result"].get("output", "") if isinstance(out["result"], dict) else str(out["result"])
+            code = (
+                out["result"].get("output", "")
+                if isinstance(out["result"], dict)
+                else str(out["result"])
+            )
             vresult = self.verifier.verify_code(code)
-            verification_results.append({
-                "worker_id": out["worker_id"],
-                "role": out["role"],
-                "passed": vresult["passed"],
-                "issues": vresult["issues"],
-            })
+            verification_results.append(
+                {
+                    "worker_id": out["worker_id"],
+                    "role": out["role"],
+                    "passed": vresult["passed"],
+                    "issues": vresult["issues"],
+                }
+            )
             status = "PASS" if vresult["passed"] else "FAIL"
             print(f"  {out['role']}: {status}")
             if vresult["issues"]:
@@ -99,8 +108,10 @@ class RIVLBrain:
         judge_scores = {}
         for out in specialist_outputs:
             judgment = self.judge.score(
-                out["worker_id"], out["role"], out["result"],
-                subtask.get("description", "")
+                out["worker_id"],
+                out["role"],
+                out["result"],
+                subtask.get("description", ""),
             )
             judge_scores[out["worker_id"]] = judgment["overall"]
 
@@ -108,7 +119,11 @@ class RIVLBrain:
         print("[RIVL] 6. Reward Engine scoring...")
         reward_events = []
         for out, vresult in zip(specialist_outputs, verification_results):
-            code = out["result"].get("output", "") if isinstance(out["result"], dict) else str(out["result"])
+            code = (
+                out["result"].get("output", "")
+                if isinstance(out["result"], dict)
+                else str(out["result"])
+            )
             event = self.reward.score(
                 prompt=plan["original_prompt"],
                 output=code,
@@ -119,12 +134,16 @@ class RIVLBrain:
             )
             reward_events.append(event)
             verdict_emoji = "✅" if event.verdict == "accepted" else "❌"
-            print(f"  {verdict_emoji} {out['role']}: reward={event.reward:.0f} | {event.verdict}")
+            print(
+                f"  {verdict_emoji} {out['role']}: reward={event.reward:.0f} | {event.verdict}"
+            )
 
         # 7. Synthesize (only verified outputs)
         print("[RIVL] 7. Synthesizing verified outputs...")
         valid_outputs = [
-            out for out, v in zip(specialist_outputs, verification_results) if v["passed"]
+            out
+            for out, v in zip(specialist_outputs, verification_results)
+            if v["passed"]
         ]
         if not valid_outputs:
             print("  ❌ No outputs passed verification. Returning best attempt.")
@@ -145,7 +164,7 @@ class RIVLBrain:
         print(f"[RIVL] ✅ Complete. Total reward: {consensus['total_reward']:.0f}")
         return final
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get RIVL system statistics."""
         return {
             "reward_engine": self.reward.get_stats(),
@@ -161,12 +180,13 @@ class RIVLBrain:
                 return w
         return None
 
-    def _build_prompt_with_memory(self, subtask: Dict, memory_addon: str) -> str:
+    def _build_prompt_with_memory(self, subtask: dict, memory_addon: str) -> str:
         base = subtask.get("description", "")
         if memory_addon:
             return f"{memory_addon}\n\nTask: {base}"
         return base
 
-    def _event_to_dict(self, event) -> Dict:
+    def _event_to_dict(self, event) -> dict:
         from dataclasses import asdict
+
         return asdict(event)

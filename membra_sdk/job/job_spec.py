@@ -10,39 +10,40 @@ Every job has:
   - expected_outputs: what should be produced
   - yield_metric: how success is measured
 """
+
 import json
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
 @dataclass
 class JobSpec:
     """A structured, executable job specification."""
+
     schema: str = "membra.job.v0.1"
     job_id: str = field(default_factory=lambda: f"job_{uuid.uuid4().hex[:8]}")
     intent: str = ""
-    inputs: List[str] = field(default_factory=list)
-    runtime: Dict = field(default_factory=dict)
+    inputs: list[str] = field(default_factory=list)
+    runtime: dict = field(default_factory=dict)
     model_backend: str = "ollama:qwen2.5-coder"
-    tools: List[str] = field(default_factory=list)
-    policy: Dict = field(default_factory=dict)
-    expected_outputs: List[str] = field(default_factory=list)
+    tools: list[str] = field(default_factory=list)
+    policy: dict = field(default_factory=dict)
+    expected_outputs: list[str] = field(default_factory=list)
     yield_metric: str = "validated_artifact_output"
     prompt_hash: str = ""
     chat_summary: str = ""
     created_at: float = field(default_factory=time.time)
     status: str = "pending"  # pending | running | completed | failed
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return asdict(self)
 
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
 
-    def save(self, path: str = None) -> str:
+    def save(self, path: str | None = None) -> str:
         """Save job spec to disk and return path."""
         if path is None:
             base = Path.home() / ".membra" / "jobs"
@@ -63,7 +64,7 @@ class JobSpec:
             data = json.load(f)
         return cls(**data)
 
-    def validate_structure(self) -> Dict:
+    def validate_structure(self) -> dict:
         """Validate that the job spec is well-formed."""
         issues = []
         if not self.intent:

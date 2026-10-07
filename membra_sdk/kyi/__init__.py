@@ -1,3 +1,3 @@
-from membra_sdk.kyi.notary import KYINotary, IdentityAttestation
+from membra_sdk.kyi.notary import IdentityAttestation, KYINotary
 
-__all__ = ["KYINotary", "IdentityAttestation"]
+__all__ = ["IdentityAttestation", "KYINotary"]

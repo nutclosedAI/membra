@@ -1,3 +1,3 @@
-from membra_sdk.consent.policy import ConsentManager, ConsentLevel
+from membra_sdk.consent.policy import ConsentLevel, ConsentManager
 
-__all__ = ["ConsentManager", "ConsentLevel"]
+__all__ = ["ConsentLevel", "ConsentManager"]

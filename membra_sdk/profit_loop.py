@@ -24,16 +24,15 @@ Revenue Sources:
   4. Proof API subscription
   5. Strategy sandbox (policy-gated)
 """
-import hashlib
-import json
-import time
-from typing import Dict, List, Optional
 
-from membra_sdk.marketplace.jobs import JobBoard, JobStatus, BuildJob
-from membra_sdk.marketplace.escrow import EscrowManager
-from membra_sdk.payments.receipts import ReceiptVerifier, PaymentReceipt
-from membra_sdk.payments.settlement import SettlementTracker
+import hashlib
+import time
+
 from membra_sdk.consensus.poy import ProofOfYieldConsensus
+from membra_sdk.marketplace.escrow import EscrowManager
+from membra_sdk.marketplace.jobs import BuildJob, JobBoard, JobStatus
+from membra_sdk.payments.receipts import PaymentReceipt, ReceiptVerifier
+from membra_sdk.payments.settlement import SettlementTracker
 
 
 class MembraProfitLoop:
@@ -46,12 +45,21 @@ class MembraProfitLoop:
         self.settlements = SettlementTracker()
         self.consensus = ProofOfYieldConsensus(agent_id="profit-loop")
 
-    def post_job(self, title: str, description: str, requirements: List[str],
-                 deliverables: List[str], budget: float, buyer_id: str) -> BuildJob:
+    def post_job(
+        self,
+        title: str,
+        description: str,
+        requirements: list[str],
+        deliverables: list[str],
+        budget: float,
+        buyer_id: str,
+    ) -> BuildJob:
         """Step 1: Buyer posts job."""
-        return self.jobs.post_job(title, description, requirements, deliverables, budget, buyer_id)
+        return self.jobs.post_job(
+            title, description, requirements, deliverables, budget, buyer_id
+        )
 
-    def deposit_escrow(self, job_id: str, buyer_id: str, amount: float) -> Dict:
+    def deposit_escrow(self, job_id: str, buyer_id: str, amount: float) -> dict:
         """Step 2: Buyer deposits funds into escrow."""
         job = self.jobs.get_job(job_id)
         if not job:
@@ -69,8 +77,9 @@ class MembraProfitLoop:
             "state": escrow.state.value,
         }
 
-    def claim_and_build(self, job_id: str, builder_id: str,
-                        artifact_path: str, artifact_content: str) -> Optional[BuildJob]:
+    def claim_and_build(
+        self, job_id: str, builder_id: str, artifact_path: str, artifact_content: str
+    ) -> BuildJob | None:
         """Step 3: Builder claims job and submits artifact."""
         # Claim
         job = self.jobs.claim_job(job_id, builder_id)
@@ -81,14 +90,16 @@ class MembraProfitLoop:
         artifact_hash = hashlib.sha256(artifact_content.encode()).hexdigest()
         return self.jobs.submit_artifact(job_id, artifact_path, artifact_hash)
 
-    def run_tests(self, job_id: str, test_command: List[str]) -> Optional[BuildJob]:
+    def run_tests(self, job_id: str, test_command: list[str]) -> BuildJob | None:
         """Step 4: Run tests on artifact."""
         import subprocess
+
         try:
             result = subprocess.run(
                 test_command,
                 capture_output=True,
                 text=True,
+                check=False,
                 timeout=60,
             )
             test_result = {
@@ -98,7 +109,7 @@ class MembraProfitLoop:
                 "stderr": result.stderr[:500],
                 "timestamp": time.time(),
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             test_result = {
                 "passed": False,
                 "error": str(e),
@@ -107,12 +118,18 @@ class MembraProfitLoop:
 
         return self.jobs.submit_tests(job_id, test_result)
 
-    def buyer_approve(self, job_id: str) -> Optional[BuildJob]:
+    def buyer_approve(self, job_id: str) -> BuildJob | None:
         """Step 5: Buyer approves delivery."""
         return self.jobs.buyer_approve(job_id)
 
-    def settle_payment(self, job_id: str, processor: str, tx_id: str,
-                       amount: float, currency: str = "USD") -> Dict:
+    def settle_payment(
+        self,
+        job_id: str,
+        processor: str,
+        tx_id: str,
+        amount: float,
+        currency: str = "USD",
+    ) -> dict:
         """Step 6: Payment settles, receipt created."""
         receipt = PaymentReceipt(
             receipt_id=f"rcpt-{job_id}",
@@ -142,14 +159,17 @@ class MembraProfitLoop:
         self.settlements.confirm_settlement(settlement.settlement_id)
 
         # Update job
-        job = self.jobs.submit_payment_receipt(job_id, {
-            "receipt_id": receipt.receipt_id,
-            "processor": processor,
-            "tx_id": tx_id,
-            "amount": amount,
-            "verified": verification["valid"],
-            "verification_hash": receipt.hash(),
-        })
+        job = self.jobs.submit_payment_receipt(
+            job_id,
+            {
+                "receipt_id": receipt.receipt_id,
+                "processor": processor,
+                "tx_id": tx_id,
+                "amount": amount,
+                "verified": verification["valid"],
+                "verification_hash": receipt.hash(),
+            },
+        )
 
         return {
             "receipt_verified": verification["valid"],
@@ -157,7 +177,7 @@ class MembraProfitLoop:
             "job_status": job.status.value if job else "unknown",
         }
 
-    def validator_consensus(self, job_id: str, validator_votes: List[Dict]) -> Dict:
+    def validator_consensus(self, job_id: str, validator_votes: list[dict]) -> dict:
         """Step 7: Validators verify receipt and reach consensus."""
         for vote in validator_votes:
             self.jobs.validator_vote(job_id, vote["validator_id"], vote)
@@ -169,11 +189,13 @@ class MembraProfitLoop:
         return {
             "consensus_reached": job.status == JobStatus.FINALIZED,
             "votes": len(job.validator_votes),
-            "valid_votes": sum(1 for v in job.validator_votes if v.get("receipt_valid")),
+            "valid_votes": sum(
+                1 for v in job.validator_votes if v.get("receipt_valid")
+            ),
             "status": job.status.value,
         }
 
-    def release_and_distribute(self, job_id: str) -> Optional[Dict]:
+    def release_and_distribute(self, job_id: str) -> dict | None:
         """Step 8: Release escrow and distribute yield."""
         job = self.jobs.get_job(job_id)
         if not job or job.status != JobStatus.FINALIZED:
@@ -189,12 +211,14 @@ class MembraProfitLoop:
             receipt={
                 "job_id": job_id,
                 "artifact_hash": job.artifact_hash,
-                "test_passed": job.test_result.get("passed") if job.test_result else False,
+                "test_passed": (
+                    job.test_result.get("passed") if job.test_result else False
+                ),
                 "buyer_approved": job.approved_at is not None,
                 "settlement_confirmed": self.settlements.is_settled(job_id),
                 "validator_consensus": True,
                 "timestamp": time.time(),
-            }
+            },
         )
 
         if not distribution:
@@ -208,7 +232,7 @@ class MembraProfitLoop:
             "status": "yield_distributed",
         }
 
-    def anchor_to_solana(self, job_id: str) -> Optional[str]:
+    def anchor_to_solana(self, job_id: str) -> str | None:
         """Step 9: Anchor finalized receipt to Solana devnet (optional)."""
         job = self.jobs.get_job(job_id)
         if not job:
@@ -219,8 +243,13 @@ class MembraProfitLoop:
         # For now, return the memo that would be anchored
         return memo
 
-    def run_full_loop(self, job_spec: Dict, builder_id: str,
-                      artifact_content: str, validator_votes: List[Dict]) -> Dict:
+    def run_full_loop(
+        self,
+        job_spec: dict,
+        builder_id: str,
+        artifact_content: str,
+        validator_votes: list[dict],
+    ) -> dict:
         """Run the complete profit loop from post to distribution."""
         # 1. Post job
         job = self.post_job(
@@ -236,14 +265,19 @@ class MembraProfitLoop:
         self.deposit_escrow(job.job_id, job_spec["buyer_id"], job_spec["budget"])
 
         # 3. Build artifact
-        self.claim_and_build(job.job_id, builder_id, "/tmp/artifact.py", artifact_content)
+        self.claim_and_build(
+            job.job_id, builder_id, "/tmp/artifact.py", artifact_content
+        )
 
         # 4. Run tests (dummy)
-        self.jobs.submit_tests(job.job_id, {
-            "passed": True,
-            "exit_code": 0,
-            "timestamp": time.time(),
-        })
+        self.jobs.submit_tests(
+            job.job_id,
+            {
+                "passed": True,
+                "exit_code": 0,
+                "timestamp": time.time(),
+            },
+        )
 
         # 5. Buyer approves
         self.buyer_approve(job.job_id)

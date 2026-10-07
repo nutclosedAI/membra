@@ -1,3 +1,3 @@
-from membra_sdk.memory.shared_memory import SharedMemory, ArtifactStore
+from membra_sdk.memory.shared_memory import ArtifactStore, SharedMemory
 
-__all__ = ["SharedMemory", "ArtifactStore"]
+__all__ = ["ArtifactStore", "SharedMemory"]

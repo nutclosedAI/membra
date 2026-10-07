@@ -10,19 +10,16 @@ Endpoints:
   POST /worker/submit-result — Worker submits task result
   GET  /health              — Health check
 """
-import hashlib
-import json
-import os
+
 import time
 from threading import Lock
-from typing import Dict, List, Optional
 
 from flask import Flask, jsonify, request
 
-from membra_sdk.brain.router import RouterBrain
 from membra_sdk.brain.judge import JudgeBrain
+from membra_sdk.brain.router import RouterBrain
 from membra_sdk.brain.synthesizer import SynthesizerBrain
-from membra_sdk.scheduler.job_queue import JobQueue, TaskStatus
+from membra_sdk.scheduler.job_queue import JobQueue
 
 
 class BrainServer:
@@ -38,11 +35,11 @@ class BrainServer:
         self.synthesizer = SynthesizerBrain()
 
         # Worker registry
-        self.workers: Dict[str, dict] = {}
+        self.workers: dict[str, dict] = {}
         self.worker_lock = Lock()
 
         # Job tracking
-        self.jobs: Dict[str, dict] = {}
+        self.jobs: dict[str, dict] = {}
         self.job_lock = Lock()
 
         self._register_routes()
@@ -52,13 +49,15 @@ class BrainServer:
 
         @self.app.route("/health", methods=["GET"])
         def health():
-            return jsonify({
-                "status": "ok",
-                "brain": "membra",
-                "workers": len(self.workers),
-                "jobs": len(self.jobs),
-                "timestamp": time.time(),
-            })
+            return jsonify(
+                {
+                    "status": "ok",
+                    "brain": "membra",
+                    "workers": len(self.workers),
+                    "jobs": len(self.jobs),
+                    "timestamp": time.time(),
+                }
+            )
 
         @self.app.route("/register-worker", methods=["POST"])
         def register_worker():
@@ -94,14 +93,17 @@ class BrainServer:
             stale_threshold = time.time() - 300
             with self.worker_lock:
                 active = {
-                    wid: w for wid, w in self.workers.items()
+                    wid: w
+                    for wid, w in self.workers.items()
                     if w["last_heartbeat"] > stale_threshold
                 }
                 self.workers = active
-            return jsonify({
-                "workers": list(active.values()),
-                "count": len(active),
-            })
+            return jsonify(
+                {
+                    "workers": list(active.values()),
+                    "count": len(active),
+                }
+            )
 
         @self.app.route("/worker/heartbeat", methods=["POST"])
         def worker_heartbeat():
@@ -139,7 +141,11 @@ class BrainServer:
                 task_items = [subtask["description"]]
                 task_list = self.queue.submit_job(
                     job_type=subtask["role"],
-                    payload={"items": task_items, "description": subtask["description"], "plan": plan},
+                    payload={
+                        "items": task_items,
+                        "description": subtask["description"],
+                        "plan": plan,
+                    },
                     split_strategy="by_item",
                 )
                 tasks.extend(task_list)
@@ -163,12 +169,14 @@ class BrainServer:
             self._dispatch_tasks()
 
             print(f"[brain] job accepted: {job_id} ({len(tasks)} tasks)")
-            return jsonify({
-                "status": "accepted",
-                "job_id": job_id,
-                "tasks": len(tasks),
-                "plan": plan,
-            })
+            return jsonify(
+                {
+                    "status": "accepted",
+                    "job_id": job_id,
+                    "tasks": len(tasks),
+                    "plan": plan,
+                }
+            )
 
         @self.app.route("/jobs/<job_id>", methods=["GET"])
         def get_job(job_id: str):
@@ -185,17 +193,21 @@ class BrainServer:
                     task_statuses[tid] = {
                         "status": task.status.value,
                         "worker": task.assigned_worker,
-                        "result_preview": str(task.result)[:200] if task.result else None,
+                        "result_preview": (
+                            str(task.result)[:200] if task.result else None
+                        ),
                     }
 
-            return jsonify({
-                "job_id": job_id,
-                "status": job["status"],
-                "prompt": job["prompt"],
-                "tasks": task_statuses,
-                "results": job.get("results", []),
-                "final_artifact": job.get("final_artifact"),
-            })
+            return jsonify(
+                {
+                    "job_id": job_id,
+                    "status": job["status"],
+                    "prompt": job["prompt"],
+                    "tasks": task_statuses,
+                    "results": job.get("results", []),
+                    "final_artifact": job.get("final_artifact"),
+                }
+            )
 
         @self.app.route("/worker/next-task", methods=["GET"])
         def next_task():
@@ -215,13 +227,17 @@ class BrainServer:
                         with self.worker_lock:
                             if worker_id in self.workers:
                                 self.workers[worker_id]["status"] = "busy"
-                                self.workers[worker_id]["current_task"] = claimed.task_id
-                        return jsonify({
-                            "task_id": claimed.task_id,
-                            "job_id": claimed.job_id,
-                            "task_type": claimed.task_type,
-                            "payload": claimed.payload,
-                        })
+                                self.workers[worker_id][
+                                    "current_task"
+                                ] = claimed.task_id
+                        return jsonify(
+                            {
+                                "task_id": claimed.task_id,
+                                "job_id": claimed.job_id,
+                                "task_type": claimed.task_type,
+                                "payload": claimed.payload,
+                            }
+                        )
 
             return jsonify({"task": None})
 
@@ -252,7 +268,8 @@ class BrainServer:
         pending = self.queue.list_pending()
         with self.worker_lock:
             idle_workers = [
-                w for w in self.workers.values()
+                w
+                for w in self.workers.values()
                 if w["status"] == "idle" and w["last_heartbeat"] > time.time() - 300
             ]
 
@@ -264,7 +281,9 @@ class BrainServer:
                     if claimed:
                         with self.worker_lock:
                             self.workers[worker["worker_id"]]["status"] = "busy"
-                            self.workers[worker["worker_id"]]["current_task"] = claimed.task_id
+                            self.workers[worker["worker_id"]][
+                                "current_task"
+                            ] = claimed.task_id
                         break
 
     def _check_job_completion(self, task_id: str):
@@ -301,12 +320,14 @@ class BrainServer:
         for tid in job.get("tasks", []):
             task = self.queue.tasks.get(tid)
             if task and task.result:
-                specialist_outputs.append({
-                    "worker_id": task.assigned_worker or "unknown",
-                    "role": task.task_type,
-                    "task_id": tid,
-                    "result": task.result,
-                })
+                specialist_outputs.append(
+                    {
+                        "worker_id": task.assigned_worker or "unknown",
+                        "role": task.task_type,
+                        "task_id": tid,
+                        "result": task.result,
+                    }
+                )
                 # Judge score
                 judgment = self.judge.score(
                     task.assigned_worker or "unknown",
@@ -327,12 +348,14 @@ class BrainServer:
             self.jobs[job_id]["final_artifact"] = final
             self.jobs[job_id]["results"] = specialist_outputs
 
-        print(f"[brain] job finalized: {job_id} artifact={final['artifact_hash'][:16]}...")
+        print(
+            f"[brain] job finalized: {job_id} artifact={final['artifact_hash'][:16]}..."
+        )
 
     def run(self):
         """Start the Flask server."""
         print(f"[brain] MEMBRA Brain Server starting on {self.host}:{self.port}")
-        print(f"[brain] Endpoints:")
+        print("[brain] Endpoints:")
         print(f"  GET  http://{self.host}:{self.port}/health")
         print(f"  GET  http://{self.host}:{self.port}/workers")
         print(f"  POST http://{self.host}:{self.port}/register-worker")
@@ -340,5 +363,5 @@ class BrainServer:
         print(f"  GET  http://{self.host}:{self.port}/jobs/<job_id>")
         print(f"  GET  http://{self.host}:{self.port}/worker/next-task")
         print(f"  POST http://{self.host}:{self.port}/worker/submit-result")
-        print(f"[brain] Press Ctrl+C to stop")
+        print("[brain] Press Ctrl+C to stop")
         self.app.run(host=self.host, port=self.port, threaded=True)

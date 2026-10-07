@@ -9,19 +9,19 @@ Hard rules. No LLM judgment here.
 
 This is the gatekeeper. Nothing passes to reward without passing verification.
 """
-import os
+
 import re
-from typing import Dict, List, Optional
 
 
 class VerifierStack:
     """Deterministic verification layer for all MEMBRA outputs."""
 
     def __init__(self):
-        self.results: List[Dict] = []
+        self.results: list[dict] = []
 
-    def verify_code(self, code: str, run_tests: bool = False,
-                    test_command: List[str] = None) -> Dict:
+    def verify_code(
+        self, code: str, run_tests: bool = False, test_command: list[str] | None = None
+    ) -> dict:
         """Verify code passes basic checks and optional tests."""
         issues = []
         passed = True
@@ -42,11 +42,13 @@ class VerifierStack:
         test_result = {"ran": False, "passed": False}
         if run_tests and test_command:
             import subprocess
+
             try:
                 result = subprocess.run(
                     test_command,
                     capture_output=True,
                     text=True,
+                    check=False,
                     timeout=30,
                 )
                 test_result["ran"] = True
@@ -55,7 +57,7 @@ class VerifierStack:
                 if not test_result["passed"]:
                     issues.append("Tests failed")
                     passed = False
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001  # noqa: BLE001
                 test_result["error"] = str(e)
                 issues.append(f"Test execution failed: {e}")
                 passed = False
@@ -69,7 +71,7 @@ class VerifierStack:
             "tests": test_result,
         }
 
-    def verify_payment(self, receipt: Dict) -> Dict:
+    def verify_payment(self, receipt: dict) -> dict:
         """Verify a Stripe/Solana payment receipt."""
         issues = []
         passed = True
@@ -100,10 +102,14 @@ class VerifierStack:
             "processor": receipt.get("processor", "unknown"),
         }
 
-    def verify_consensus(self, votes: List[Dict], threshold: float = 0.66) -> Dict:
+    def verify_consensus(self, votes: list[dict], threshold: float = 0.66) -> dict:
         """Verify 2/3 validator consensus on an output."""
         if not votes:
-            return {"type": "consensus", "passed": False, "issues": ["No votes received"]}
+            return {
+                "type": "consensus",
+                "passed": False,
+                "issues": ["No votes received"],
+            }
 
         total = len(votes)
         yes_votes = sum(1 for v in votes if v.get("vote") == "yes")
@@ -112,7 +118,9 @@ class VerifierStack:
         passed = ratio >= threshold
         issues = []
         if not passed:
-            issues.append(f"Consensus failed: {yes_votes}/{total} ({ratio:.2%}), need {threshold:.0%}")
+            issues.append(
+                f"Consensus failed: {yes_votes}/{total} ({ratio:.2%}), need {threshold:.0%}"
+            )
 
         return {
             "type": "consensus",
@@ -123,7 +131,7 @@ class VerifierStack:
             "ratio": round(ratio, 3),
         }
 
-    def verify_policy(self, action: str, policy_config: Dict) -> Dict:
+    def verify_policy(self, action: str, policy_config: dict) -> dict:
         """Verify action complies with policy gates."""
         issues = []
         passed = True
@@ -133,19 +141,21 @@ class VerifierStack:
             if not policy_config.get("defi_enabled", False):
                 issues.append("DeFi is disabled by policy")
                 passed = False
-            if policy_config.get("mode", "simulation") != "simulation":
-                if not policy_config.get("mainnet_enabled", False):
-                    issues.append("Mainnet transactions require explicit enable")
-                    passed = False
+            if policy_config.get(
+                "mode", "simulation"
+            ) != "simulation" and not policy_config.get("mainnet_enabled", False):
+                issues.append("Mainnet transactions require explicit enable")
+                passed = False
             if not policy_config.get("require_human_approval", True):
                 issues.append("Human approval required for financial actions")
                 passed = False
 
         # Mainnet gate
-        if "mainnet" in action.lower():
-            if not policy_config.get("mainnet_enabled", False):
-                issues.append("Mainnet explicitly disabled")
-                passed = False
+        if "mainnet" in action.lower() and not policy_config.get(
+            "mainnet_enabled", False
+        ):
+            issues.append("Mainnet explicitly disabled")
+            passed = False
 
         return {
             "type": "policy",
@@ -154,10 +164,14 @@ class VerifierStack:
             "action": action,
         }
 
-    def run_full_verification(self, artifact: str, receipt: Dict = None,
-                              votes: List[Dict] = None,
-                              policy: Dict = None,
-                              run_tests: bool = False) -> Dict:
+    def run_full_verification(
+        self,
+        artifact: str,
+        receipt: dict | None = None,
+        votes: list[dict] | None = None,
+        policy: dict | None = None,
+        run_tests: bool = False,
+    ) -> dict:
         """Run complete verification stack."""
         results = []
 
@@ -193,7 +207,7 @@ class VerifierStack:
             "issue_count": len(all_issues),
         }
 
-    def _scan_security(self, code: str) -> Dict:
+    def _scan_security(self, code: str) -> dict:
         """Scan code for dangerous patterns."""
         issues = []
         patterns = [
@@ -216,13 +230,14 @@ class VerifierStack:
 
         return {"issues": issues, "passed": len(issues) == 0}
 
-    def _check_syntax(self, code: str) -> Dict:
+    def _check_syntax(self, code: str) -> dict:
         """Check Python syntax."""
         try:
             import ast
+
             ast.parse(code)
             return {"valid": True, "error": None}
         except SyntaxError as e:
             return {"valid": False, "error": str(e)}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return {"valid": False, "error": str(e)}

@@ -13,21 +13,26 @@ Supported settlement types:
 MEMBRA measures and packages proof.
 It does not manufacture external demand.
 """
-import json
+
 import time
-from pathlib import Path
-from typing import Dict, List, Optional
 
 
 class SettlementAdapter:
     """Adapts proof bundles for external settlement."""
 
     def __init__(self):
-        self.receipts: List[Dict] = []
+        self.receipts: list[dict] = []
 
-    def add_receipt(self, receipt_type: str, amount: float,
-                    currency: str = "USD", status: str = "confirmed",
-                    processor: str = "", tx_id: str = "", metadata: Dict = None) -> Dict:
+    def add_receipt(
+        self,
+        receipt_type: str,
+        amount: float,
+        currency: str = "USD",
+        status: str = "confirmed",
+        processor: str = "",
+        tx_id: str = "",
+        metadata: dict | None = None,
+    ) -> dict:
         """Add an external receipt to the settlement record."""
         receipt = {
             "type": receipt_type,
@@ -42,7 +47,7 @@ class SettlementAdapter:
         self.receipts.append(receipt)
         return receipt
 
-    def preview(self, proof_bundle: Dict) -> Dict:
+    def preview(self, proof_bundle: dict) -> dict:
         """Preview what settlement would look like for this proof."""
         yield_data = proof_bundle.get("yield", {})
         consensus = proof_bundle.get("consensus", {})
@@ -59,7 +64,11 @@ class SettlementAdapter:
             return {
                 "settlable": True,
                 "warning": "Low yield score — may not attract buyers",
-                "suggested_actions": ["Improve tests", "Add documentation", "Run benchmarks"],
+                "suggested_actions": [
+                    "Improve tests",
+                    "Add documentation",
+                    "Run benchmarks",
+                ],
             }
 
         return {
@@ -73,7 +82,7 @@ class SettlementAdapter:
             ],
         }
 
-    def export_invoice(self, proof_bundle: Dict, rate_per_point: float = 1.0) -> Dict:
+    def export_invoice(self, proof_bundle: dict, rate_per_point: float = 1.0) -> dict:
         """Generate an invoice preview from proof bundle yield."""
         yield_data = proof_bundle.get("yield", {})
         score = yield_data.get("total_score", 0)
@@ -84,16 +93,42 @@ class SettlementAdapter:
             "amount": amount,
             "currency": "USD",
             "line_items": [
-                {"description": "Artifact Yield", "score": yield_data.get("artifact_yield", 0), "amount": round(yield_data.get("artifact_yield", 0) * rate_per_point * 0.35, 2)},
-                {"description": "Validation Yield", "score": yield_data.get("validation_yield", 0), "amount": round(yield_data.get("validation_yield", 0) * rate_per_point * 0.35, 2)},
-                {"description": "Market Yield", "score": yield_data.get("market_yield", 0), "amount": round(yield_data.get("market_yield", 0) * rate_per_point * 0.15, 2)},
-                {"description": "Chain Yield", "score": yield_data.get("chain_yield", 0), "amount": round(yield_data.get("chain_yield", 0) * rate_per_point * 0.15, 2)},
+                {
+                    "description": "Artifact Yield",
+                    "score": yield_data.get("artifact_yield", 0),
+                    "amount": round(
+                        yield_data.get("artifact_yield", 0) * rate_per_point * 0.35, 2
+                    ),
+                },
+                {
+                    "description": "Validation Yield",
+                    "score": yield_data.get("validation_yield", 0),
+                    "amount": round(
+                        yield_data.get("validation_yield", 0) * rate_per_point * 0.35, 2
+                    ),
+                },
+                {
+                    "description": "Market Yield",
+                    "score": yield_data.get("market_yield", 0),
+                    "amount": round(
+                        yield_data.get("market_yield", 0) * rate_per_point * 0.15, 2
+                    ),
+                },
+                {
+                    "description": "Chain Yield",
+                    "score": yield_data.get("chain_yield", 0),
+                    "amount": round(
+                        yield_data.get("chain_yield", 0) * rate_per_point * 0.15, 2
+                    ),
+                },
             ],
             "total": amount,
             "proof_root": proof_bundle.get("root_hash", "N/A")[:16] + "...",
         }
 
-    def anchor_to_devnet(self, proof_bundle: Dict, solana_rpc: str = "https://api.devnet.solana.com") -> Dict:
+    def anchor_to_devnet(
+        self, proof_bundle: dict, solana_rpc: str = "https://api.devnet.solana.com"
+    ) -> dict:
         """Anchor proof root hash to Solana devnet (placeholder)."""
         # This would use solana-py to send a memo transaction
         # For now, return the instructions

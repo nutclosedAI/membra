@@ -7,7 +7,6 @@ Rules:
   - If consensus fails, job is rejected
   - Rejection reasons are preserved for retry
 """
-from typing import Dict, List
 
 
 class ConsensusEngine:
@@ -15,10 +14,10 @@ class ConsensusEngine:
 
     DEFAULT_THRESHOLD = "2/3"
 
-    def __init__(self, threshold: str = None):
+    def __init__(self, threshold: str | None = None):
         self.threshold = threshold or self.DEFAULT_THRESHOLD
 
-    def evaluate(self, votes: List[Dict]) -> Dict:
+    def evaluate(self, votes: list[dict]) -> dict:
         """Evaluate votes and return consensus result."""
         if not votes:
             return {
@@ -45,9 +44,7 @@ class ConsensusEngine:
 
         passed = ratio >= required
 
-        rejection_reasons = [
-            v["reason"] for v in votes if v.get("vote") == "reject"
-        ]
+        rejection_reasons = [v["reason"] for v in votes if v.get("vote") == "reject"]
 
         return {
             "result": "accepted" if passed else "rejected",
@@ -59,7 +56,7 @@ class ConsensusEngine:
             "rejection_reasons": rejection_reasons if not passed else [],
         }
 
-    def can_retry(self, consensus: Dict) -> bool:
+    def can_retry(self, consensus: dict) -> bool:
         """Determine if a rejected job can be retried."""
         if consensus["result"] == "accepted":
             return False

@@ -7,20 +7,17 @@ Or expose with ngrok:
     ngrok http 4242
     stripe listen --forward-to https://your-ngrok-url/webhook
 """
-import hashlib
-import json
-import os
+
 import sys
 import time
-from threading import Thread
 
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 
 sys.path.insert(0, "/Users/alep/Downloads/membra-sdk")
 
-from membra_sdk.payments.stripe_checkout import MembraStripeCheckout
 from membra_sdk.builder.artifact_builder import ArtifactBuilder
 from membra_sdk.core.ledger import InternalLedger
+from membra_sdk.payments.stripe_checkout import MembraStripeCheckout
 
 app = Flask(__name__)
 
@@ -71,7 +68,7 @@ def stripe_webhook():
                     "description": "AI-generated utility function",
                     "function_name": "membra_task",
                     "job_id": job_id,
-                }
+                },
             )
 
             if build_result["status"] == "built":
@@ -84,32 +81,47 @@ def stripe_webhook():
 
                 # Split revenue in ledger
                 splits = split_revenue(session_id, amount, build_result)
-                print(f"[LEDGER] Revenue split recorded:")
+                print("[LEDGER] Revenue split recorded:")
                 for k, v in splits.items():
                     print(f"  {k}: ${v:.2f}")
 
-                return jsonify({
-                    "status": "success",
-                    "job_id": job_id,
-                    "amount": amount,
-                    "artifact": build_result["filename"],
-                    "hash": build_result["content_hash"],
-                    "report_zip": zip_path,
-                    "splits": splits,
-                }), 200
+                return (
+                    jsonify(
+                        {
+                            "status": "success",
+                            "job_id": job_id,
+                            "amount": amount,
+                            "artifact": build_result["filename"],
+                            "hash": build_result["content_hash"],
+                            "report_zip": zip_path,
+                            "splits": splits,
+                        }
+                    ),
+                    200,
+                )
             else:
                 print(f"[BUILD] Failed: {build_result['test_result']}")
-                return jsonify({
-                    "status": "build_failed",
-                    "job_id": job_id,
-                    "error": build_result["test_result"],
-                }), 200
+                return (
+                    jsonify(
+                        {
+                            "status": "build_failed",
+                            "job_id": job_id,
+                            "error": build_result["test_result"],
+                        }
+                    ),
+                    200,
+                )
 
         else:
-            return jsonify({
-                "status": "payment_not_verified",
-                "reason": result.get("reason", ""),
-            }), 200
+            return (
+                jsonify(
+                    {
+                        "status": "payment_not_verified",
+                        "reason": result.get("reason", ""),
+                    }
+                ),
+                200,
+            )
 
     return jsonify({"status": "ignored", "event": event_type}), 200
 
@@ -157,18 +169,20 @@ def split_revenue(session_id: str, amount: float, build_result: dict) -> dict:
     risk = amount * 0.10
 
     # Log to internal ledger
-    ledger.submit({
-        "type": "revenue_split",
-        "session_id": session_id,
-        "amount": amount,
-        "infrastructure": infrastructure,
-        "validator": validator,
-        "builder": builder_reward,
-        "treasury": treasury,
-        "risk": risk,
-        "artifact_hash": build_result.get("content_hash", ""),
-        "timestamp": time.time(),
-    })
+    ledger.submit(
+        {
+            "type": "revenue_split",
+            "session_id": session_id,
+            "amount": amount,
+            "infrastructure": infrastructure,
+            "validator": validator,
+            "builder": builder_reward,
+            "treasury": treasury,
+            "risk": risk,
+            "artifact_hash": build_result.get("content_hash", ""),
+            "timestamp": time.time(),
+        }
+    )
 
     return {
         "total": amount,

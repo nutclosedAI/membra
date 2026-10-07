@@ -20,10 +20,10 @@ Output format:
 
 This combines LLM inference with deterministic checks.
 """
+
 import hashlib
 import json
 import os
-from typing import Dict, List, Optional
 
 import torch
 
@@ -34,7 +34,12 @@ from .tokenizer import ByteTokenizer
 class ValidatorEngine:
     """Evaluate job artifacts and produce structured validator votes."""
 
-    def __init__(self, model: LLMGPT, tokenizer: Optional[ByteTokenizer] = None, device: Optional[str] = None):
+    def __init__(
+        self,
+        model: LLMGPT,
+        tokenizer: ByteTokenizer | None = None,
+        device: str | None = None,
+    ):
         self.model = model
         self.tokenizer = tokenizer or ByteTokenizer()
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -47,9 +52,9 @@ class ValidatorEngine:
     def _build_validator_prompt(
         self,
         job_intent: str,
-        artifacts: List[Dict],
-        test_results: Optional[Dict] = None,
-        policy: Optional[Dict] = None,
+        artifacts: list[dict],
+        test_results: dict | None = None,
+        policy: dict | None = None,
     ) -> str:
         """Build the prompt that asks the model to act as a validator."""
         prompt = f"""You are a MEMBRA validator. Evaluate the following job output.
@@ -99,14 +104,16 @@ Respond ONLY in this JSON format:
     def evaluate(
         self,
         job_intent: str,
-        artifacts: List[Dict],
-        test_results: Optional[Dict] = None,
-        policy: Optional[Dict] = None,
+        artifacts: list[dict],
+        test_results: dict | None = None,
+        policy: dict | None = None,
         max_tokens: int = 512,
         temperature: float = 0.3,
-    ) -> Dict:
+    ) -> dict:
         """Evaluate artifacts and return a structured vote."""
-        prompt = self._build_validator_prompt(job_intent, artifacts, test_results, policy)
+        prompt = self._build_validator_prompt(
+            job_intent, artifacts, test_results, policy
+        )
         tokens = self.tokenizer.encode(prompt)
         idx = torch.tensor([tokens], dtype=torch.long, device=self.device)
 
@@ -138,7 +145,7 @@ Respond ONLY in this JSON format:
         vote["reason_hash"] = self._hash_reason(vote["reason"])
         return vote
 
-    def _parse_vote(self, text: str) -> Optional[Dict]:
+    def _parse_vote(self, text: str) -> dict | None:
         """Extract JSON vote from model output."""
         try:
             # Find JSON block
@@ -163,10 +170,10 @@ Respond ONLY in this JSON format:
     def _deterministic_vote(
         self,
         job_intent: str,
-        artifacts: List[Dict],
-        test_results: Optional[Dict],
-        policy: Optional[Dict],
-    ) -> Dict:
+        artifacts: list[dict],
+        test_results: dict | None,
+        policy: dict | None,
+    ) -> dict:
         """Fallback deterministic validator (no model required)."""
         checks = {
             "structure": len(artifacts) > 0,
@@ -179,7 +186,13 @@ Respond ONLY in this JSON format:
         # Security scan
         for art in artifacts:
             content = art.get("content", "")
-            bad_patterns = ["eval(", "os.system(", "subprocess.call", "__import__", "exec("]
+            bad_patterns = [
+                "eval(",
+                "os.system(",
+                "subprocess.call",
+                "__import__",
+                "exec(",
+            ]
             for pat in bad_patterns:
                 if pat in content:
                     checks["security"] = False
@@ -194,12 +207,11 @@ Respond ONLY in this JSON format:
             checks["tests"] = True  # no tests required
 
         # Policy check
-        if policy:
-            if policy.get("secrets") == "blocked":
-                for art in artifacts:
-                    content = art.get("content", "")
-                    if "API_KEY" in content or "SECRET" in content:
-                        checks["policy"] = False
+        if policy and policy.get("secrets") == "blocked":
+            for art in artifacts:
+                content = art.get("content", "")
+                if "API_KEY" in content or "SECRET" in content:
+                    checks["policy"] = False
 
         score = sum(checks.values()) * 20  # 5 checks * 20 = 100 max
         vote_val = 1 if score >= 60 else 0
@@ -225,7 +237,7 @@ Respond ONLY in this JSON format:
             "checks": checks,
         }
 
-    def evaluate_directory(self, job_intent: str, directory: str) -> Dict:
+    def evaluate_directory(self, job_intent: str, directory: str) -> dict:
         """Evaluate all files in a directory as job artifacts."""
         artifacts = []
         for root, _, files in os.walk(directory):
@@ -235,7 +247,7 @@ Respond ONLY in this JSON format:
                     with open(path) as f:
                         content = f.read()
                     artifacts.append({"path": path, "content": content})
-                except Exception:
+                except Exception:  # noqa: BLE001, S110 — skip unreadable artifact file
                     pass
 
         return self.evaluate(job_intent, artifacts)

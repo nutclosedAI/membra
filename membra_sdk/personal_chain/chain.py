@@ -7,40 +7,42 @@ The doctrine:
 - Consent before capture.
 - Hash before public proof.
 """
+
 import hashlib
 import json
 import os
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 from membra_sdk.personal_chain.events import EventType
 
 
 class PrivacyLabel(Enum):
-    PRIVATE = "private"      # Never leaves local machine
+    PRIVATE = "private"  # Never leaves local machine
     PROTECTED = "protected"  # Encrypted, shared only with explicit consent
-    PUBLIC = "public"        # Hash and metadata may be published
+    PUBLIC = "public"  # Hash and metadata may be published
     ANONYMOUS = "anonymous"  # Metadata public, identity stripped
 
 
 @dataclass
 class ChainEvent:
     """A single event in the personal chain."""
+
     event_id: str
     event_type: EventType
     timestamp: float
-    data_hash: str           # SHA-256 of event data
-    data_preview: str        # Human-readable preview (not full data)
+    data_hash: str  # SHA-256 of event data
+    data_preview: str  # Human-readable preview (not full data)
     privacy: PrivacyLabel
-    consent_token: str       # Proof that user consented to this capture
-    sequence: int            # Position in chain
-    previous_hash: str       # Hash of previous event (chain integrity)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    notary_attestation: Optional[str] = None
-    stripe_receipt_id: Optional[str] = None
-    solana_anchor: Optional[str] = None
+    consent_token: str  # Proof that user consented to this capture
+    sequence: int  # Position in chain
+    previous_hash: str  # Hash of previous event (chain integrity)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    notary_attestation: str | None = None
+    stripe_receipt_id: str | None = None
+    solana_anchor: str | None = None
 
     def full_hash(self) -> str:
         """Hash of this event including previous hash (chain integrity)."""
@@ -70,15 +72,17 @@ class PersonalChain:
     - Their exportable archive
     """
 
-    def __init__(self, user_id: str, storage_path: str = None):
+    def __init__(self, user_id: str, storage_path: str | None = None):
         self.user_id = user_id
-        self.storage_path = storage_path or os.path.expanduser(f"~/.membra/chains/{user_id}")
+        self.storage_path = storage_path or os.path.expanduser(
+            f"~/.membra/chains/{user_id}"
+        )
         os.makedirs(self.storage_path, exist_ok=True)
 
-        self.events: List[ChainEvent] = []
+        self.events: list[ChainEvent] = []
         self.sequence = 0
         self.last_hash = "0" * 64  # Genesis previous hash
-        self.consent_policy: Dict[str, Any] = {
+        self.consent_policy: dict[str, Any] = {
             "auto_capture_prompts": False,
             "auto_capture_uploads": False,
             "auto_capture_builds": True,
@@ -90,8 +94,14 @@ class PersonalChain:
         self._load_chain()
         self._load_policy()
 
-    def log_event(self, event_type: EventType, data: Any, privacy: PrivacyLabel = None,
-                  metadata: Dict = None, consent_override: bool = False) -> Optional[ChainEvent]:
+    def log_event(
+        self,
+        event_type: EventType,
+        data: Any,
+        privacy: PrivacyLabel = None,
+        metadata: dict | None = None,
+        consent_override: bool = False,
+    ) -> ChainEvent | None:
         """Log a consented event to the personal chain.
 
         Returns None if user has not consented to this capture.
@@ -102,10 +112,16 @@ class PersonalChain:
 
         # Default privacy from policy
         if privacy is None:
-            privacy = PrivacyLabel(self.consent_policy.get("default_privacy", "private"))
+            privacy = PrivacyLabel(
+                self.consent_policy.get("default_privacy", "private")
+            )
 
         # Compute data hash (hash the actual data, not store it)
-        data_str = json.dumps(data, sort_keys=True, default=str) if not isinstance(data, str) else data
+        data_str = (
+            json.dumps(data, sort_keys=True, default=str)
+            if not isinstance(data, str)
+            else data
+        )
         data_hash = hashlib.sha256(data_str.encode()).hexdigest()
 
         # Create preview (first 200 chars)
@@ -135,7 +151,9 @@ class PersonalChain:
         self._persist_event(event)
         return event
 
-    def log_prompt(self, prompt_text: str, llm_model: str = None) -> Optional[ChainEvent]:
+    def log_prompt(
+        self, prompt_text: str, llm_model: str | None = None
+    ) -> ChainEvent | None:
         """Log a user prompt. Requires consent for prompt capture."""
         return self.log_event(
             EventType.PROMPT,
@@ -144,7 +162,9 @@ class PersonalChain:
             metadata={"source": "closedai_chat"},
         )
 
-    def log_llm_response(self, response_text: str, prompt_event_id: str = None) -> Optional[ChainEvent]:
+    def log_llm_response(
+        self, response_text: str, prompt_event_id: str | None = None
+    ) -> ChainEvent | None:
         """Log an LLM response."""
         return self.log_event(
             EventType.LLM_RESPONSE,
@@ -153,17 +173,26 @@ class PersonalChain:
             metadata={"source": "llm_inference"},
         )
 
-    def log_artifact(self, artifact_path: str, artifact_content: str,
-                     artifact_type: str = "file") -> Optional[ChainEvent]:
+    def log_artifact(
+        self, artifact_path: str, artifact_content: str, artifact_type: str = "file"
+    ) -> ChainEvent | None:
         """Log a generated artifact. Build artifacts default to PROTECTED."""
         return self.log_event(
             EventType.LLM_ARTIFACT,
-            {"path": artifact_path, "type": artifact_type, "size": len(artifact_content)},
+            {
+                "path": artifact_path,
+                "type": artifact_type,
+                "size": len(artifact_content),
+            },
             privacy=PrivacyLabel.PROTECTED,
-            metadata={"content_hash": hashlib.sha256(artifact_content.encode()).hexdigest()},
+            metadata={
+                "content_hash": hashlib.sha256(artifact_content.encode()).hexdigest()
+            },
         )
 
-    def log_build(self, success: bool, build_log: str, artifact_hashes: List[str] = None) -> Optional[ChainEvent]:
+    def log_build(
+        self, success: bool, build_log: str, artifact_hashes: list[str] | None = None
+    ) -> ChainEvent | None:
         """Log a build event."""
         event_type = EventType.BUILD_SUCCESS if success else EventType.BUILD_FAILURE
         return self.log_event(
@@ -173,11 +202,14 @@ class PersonalChain:
             metadata={"exit_code": 0 if success else 1},
         )
 
-    def log_stripe_receipt(self, receipt: Dict) -> Optional[ChainEvent]:
+    def log_stripe_receipt(self, receipt: dict) -> ChainEvent | None:
         """Log a Stripe settlement receipt."""
         event = self.log_event(
             EventType.STRIPE_RECEIPT,
-            {"receipt_id": receipt.get("receipt_id"), "amount": receipt.get("amount_usd")},
+            {
+                "receipt_id": receipt.get("receipt_id"),
+                "amount": receipt.get("amount_usd"),
+            },
             privacy=PrivacyLabel.ANONYMOUS,  # Amount public, identity stripped
             metadata={"processor": "stripe", "status": receipt.get("status")},
         )
@@ -185,7 +217,7 @@ class PersonalChain:
             event.stripe_receipt_id = receipt.get("receipt_id")
         return event
 
-    def log_solana_anchor(self, memo: str, tx_signature: str) -> Optional[ChainEvent]:
+    def log_solana_anchor(self, memo: str, tx_signature: str) -> ChainEvent | None:
         """Log a Solana anchor event."""
         event = self.log_event(
             EventType.SOLANA_ANCHOR,
@@ -206,7 +238,7 @@ class PersonalChain:
                 return True
         return False
 
-    def get_chain_summary(self) -> Dict:
+    def get_chain_summary(self) -> dict:
         """Summary of the personal chain."""
         privacy_counts = {}
         for event in self.events:
@@ -222,25 +254,27 @@ class PersonalChain:
             "consent_policy": self.consent_policy,
         }
 
-    def export_public_proofs(self) -> List[Dict]:
+    def export_public_proofs(self) -> list[dict]:
         """Export only public/anchored proof events. No private data."""
         public_events = []
         for event in self.events:
             if event.privacy in (PrivacyLabel.PUBLIC, PrivacyLabel.ANONYMOUS):
-                public_events.append({
-                    "event_id": event.event_id,
-                    "event_type": event.event_type.value,
-                    "timestamp": event.timestamp,
-                    "data_hash": event.data_hash,
-                    "privacy": event.privacy.value,
-                    "sequence": event.sequence,
-                    "previous_hash": event.previous_hash,
-                    "metadata": event.metadata,
-                    "solana_anchor": event.solana_anchor,
-                })
+                public_events.append(
+                    {
+                        "event_id": event.event_id,
+                        "event_type": event.event_type.value,
+                        "timestamp": event.timestamp,
+                        "data_hash": event.data_hash,
+                        "privacy": event.privacy.value,
+                        "sequence": event.sequence,
+                        "previous_hash": event.previous_hash,
+                        "metadata": event.metadata,
+                        "solana_anchor": event.solana_anchor,
+                    }
+                )
         return public_events
 
-    def export_chain_archive(self) -> Dict:
+    def export_chain_archive(self) -> dict:
         """Export full chain archive (user-owned, encrypted at rest)."""
         return {
             "user_id": self.user_id,
@@ -301,28 +335,34 @@ class PersonalChain:
         """Save event to local storage."""
         path = os.path.join(self.storage_path, f"{event.sequence:08d}.json")
         with open(path, "w") as f:
-            json.dump({
-                "event_id": event.event_id,
-                "event_type": event.event_type.value,
-                "timestamp": event.timestamp,
-                "data_hash": event.data_hash,
-                "data_preview": event.data_preview,
-                "privacy": event.privacy.value,
-                "consent_token": event.consent_token,
-                "sequence": event.sequence,
-                "previous_hash": event.previous_hash,
-                "metadata": event.metadata,
-                "notary_attestation": event.notary_attestation,
-                "stripe_receipt_id": event.stripe_receipt_id,
-                "solana_anchor": event.solana_anchor,
-            }, f, indent=2)
+            json.dump(
+                {
+                    "event_id": event.event_id,
+                    "event_type": event.event_type.value,
+                    "timestamp": event.timestamp,
+                    "data_hash": event.data_hash,
+                    "data_preview": event.data_preview,
+                    "privacy": event.privacy.value,
+                    "consent_token": event.consent_token,
+                    "sequence": event.sequence,
+                    "previous_hash": event.previous_hash,
+                    "metadata": event.metadata,
+                    "notary_attestation": event.notary_attestation,
+                    "stripe_receipt_id": event.stripe_receipt_id,
+                    "solana_anchor": event.solana_anchor,
+                },
+                f,
+                indent=2,
+            )
 
     def _load_chain(self):
         """Load chain from local storage."""
         if not os.path.exists(self.storage_path):
             return
 
-        files = sorted([f for f in os.listdir(self.storage_path) if f.endswith(".json")])
+        files = sorted(
+            [f for f in os.listdir(self.storage_path) if f.endswith(".json")]
+        )
         for fname in files:
             try:
                 with open(os.path.join(self.storage_path, fname)) as f:
@@ -346,7 +386,7 @@ class PersonalChain:
                 self.events.append(event)
                 self.sequence = event.sequence + 1
                 self.last_hash = event.full_hash()
-            except Exception:
+            except Exception:  # noqa: BLE001, S110 — skip malformed chain event
                 pass
 
     def _save_policy(self):
@@ -362,5 +402,5 @@ class PersonalChain:
             try:
                 with open(path) as f:
                     self.consent_policy = json.load(f)
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass

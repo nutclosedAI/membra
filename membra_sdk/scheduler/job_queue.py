@@ -19,6 +19,7 @@ What does NOT work well:
   - Real-time chat with distributed workers (network latency)
   - Large model inference requiring shared memory
 """
+
 import hashlib
 import json
 import os
@@ -26,7 +27,6 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
 
 
 class TaskStatus(Enum):
@@ -41,17 +41,18 @@ class TaskStatus(Enum):
 @dataclass
 class TaskSplit:
     """A single independent task that can be run on any worker."""
+
     task_id: str
     job_id: str
-    task_type: str      # "prompt", "file_analysis", "artifact_gen", "embedding", "review"
-    payload: dict        # The actual work: prompt text, file path, etc.
+    task_type: str  # "prompt", "file_analysis", "artifact_gen", "embedding", "review"
+    payload: dict  # The actual work: prompt text, file path, etc.
     status: TaskStatus = TaskStatus.PENDING
-    assigned_worker: Optional[str] = None
-    result: Optional[dict] = None
-    proof_hash: Optional[str] = None
+    assigned_worker: str | None = None
+    result: dict | None = None
+    proof_hash: str | None = None
     created_at: float = field(default_factory=time.time)
-    started_at: Optional[float] = None
-    completed_at: Optional[float] = None
+    started_at: float | None = None
+    completed_at: float | None = None
     cost_estimate: float = 0.0  # Estimated compute cost in cents
 
     def compute_proof_hash(self) -> str:
@@ -65,13 +66,15 @@ class TaskSplit:
 class JobQueue:
     """Schedules and tracks distributed AI tasks across worker nodes."""
 
-    def __init__(self, storage_path: str = None):
+    def __init__(self, storage_path: str | None = None):
         self.storage_path = storage_path or "/tmp/membra_job_queue.json"
-        self.tasks: Dict[str, TaskSplit] = {}
-        self.job_results: Dict[str, List[dict]] = {}
+        self.tasks: dict[str, TaskSplit] = {}
+        self.job_results: dict[str, list[dict]] = {}
         self._load()
 
-    def submit_job(self, job_type: str, payload: dict, split_strategy: str = "single") -> List[TaskSplit]:
+    def submit_job(
+        self, job_type: str, payload: dict, split_strategy: str = "single"
+    ) -> list[TaskSplit]:
         """Submit a job and split into independent tasks.
 
         Args:
@@ -135,7 +138,9 @@ class JobQueue:
         self._persist()
         return tasks
 
-    def claim_task(self, worker_id: str, capability: str = None) -> Optional[TaskSplit]:
+    def claim_task(
+        self, worker_id: str, capability: str | None = None
+    ) -> TaskSplit | None:
         """Worker claims an available task matching its capability."""
         for task in self.tasks.values():
             if task.status == TaskStatus.PENDING:
@@ -160,12 +165,14 @@ class JobQueue:
         task.completed_at = time.time()
 
         # Add to job results
-        self.job_results.setdefault(task.job_id, []).append({
-            "task_id": task_id,
-            "worker": worker_id,
-            "proof_hash": task.proof_hash,
-            "result_preview": str(result)[:200],
-        })
+        self.job_results.setdefault(task.job_id, []).append(
+            {
+                "task_id": task_id,
+                "worker": worker_id,
+                "proof_hash": task.proof_hash,
+                "result_preview": str(result)[:200],
+            }
+        )
 
         self._persist()
         return True
@@ -199,10 +206,10 @@ class JobQueue:
             "results": self.job_results.get(job_id, []),
         }
 
-    def list_pending(self) -> List[TaskSplit]:
+    def list_pending(self) -> list[TaskSplit]:
         return [t for t in self.tasks.values() if t.status == TaskStatus.PENDING]
 
-    def list_completed(self) -> List[TaskSplit]:
+    def list_completed(self) -> list[TaskSplit]:
         return [t for t in self.tasks.values() if t.status == TaskStatus.COMPLETED]
 
     def _estimate_cost(self, task_type: str, item: any) -> float:
@@ -235,8 +242,13 @@ class JobQueue:
                     "cost_estimate": t.cost_estimate,
                 }
             with open(self.storage_path, "w") as f:
-                json.dump({"tasks": data, "job_results": self.job_results}, f, indent=2, default=str)
-        except Exception:
+                json.dump(
+                    {"tasks": data, "job_results": self.job_results},
+                    f,
+                    indent=2,
+                    default=str,
+                )
+        except Exception:  # noqa: BLE001, S110 — tolerate unwritable queue store
             pass
 
     def _load(self):
@@ -261,5 +273,5 @@ class JobQueue:
                     cost_estimate=td.get("cost_estimate", 0.0),
                 )
             self.job_results = data.get("job_results", {})
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 — tolerate corrupt queue store
             pass

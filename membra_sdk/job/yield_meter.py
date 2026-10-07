@@ -9,13 +9,14 @@ Measures 4 kinds of yield:
 MEMBRA generates the first two directly.
 MEMBRA documents the third and fourth only when external receipts exist.
 """
-from dataclasses import dataclass, asdict
-from typing import Dict, List, Optional
+
+from dataclasses import asdict, dataclass
 
 
 @dataclass
 class YieldReport:
     """A complete yield measurement for a job."""
+
     artifact_yield: float = 0.0
     validation_yield: float = 0.0
     market_yield: float = 0.0
@@ -29,14 +30,14 @@ class YieldReport:
     economic_status: str = "unsettled"
     real_revenue: float = 0.0
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return asdict(self)
 
 
 class YieldMeter:
     """Measures yield for completed jobs."""
 
-    def score_artifact_yield(self, artifacts: List[Dict]) -> float:
+    def score_artifact_yield(self, artifacts: list[dict]) -> float:
         """Score based on number, size, and diversity of artifacts."""
         if not artifacts:
             return 0.0
@@ -46,8 +47,13 @@ class YieldMeter:
         score = min(100, 20 * count + min(20, total_bytes / 10000))
         return round(score, 1)
 
-    def score_validation_yield(self, tests_passed: int, tests_total: int,
-                                lint_passed: bool, security_flags: int) -> float:
+    def score_validation_yield(
+        self,
+        tests_passed: int,
+        tests_total: int,
+        lint_passed: bool,
+        security_flags: int,
+    ) -> float:
         """Score based on validation checks."""
         if tests_total == 0:
             test_score = 50  # No tests is neutral
@@ -60,7 +66,7 @@ class YieldMeter:
         score = test_score + lint_bonus - security_penalty
         return max(0, round(score, 1))
 
-    def score_market_yield(self, receipts: List[Dict]) -> float:
+    def score_market_yield(self, receipts: list[dict]) -> float:
         """Score market yield from external receipts.
 
         MEMBRA does not generate this directly.
@@ -68,12 +74,14 @@ class YieldMeter:
         """
         if not receipts:
             return 0.0
-        total = sum(r.get("amount", 0) for r in receipts if r.get("status") == "confirmed")
+        total = sum(
+            r.get("amount", 0) for r in receipts if r.get("status") == "confirmed"
+        )
         # Normalize: $100 ≈ 50 score
         score = min(100, total / 2)
         return round(score, 1)
 
-    def score_chain_yield(self, chain_receipts: List[Dict]) -> float:
+    def score_chain_yield(self, chain_receipts: list[dict]) -> float:
         """Score blockchain yield from on-chain receipts."""
         if not chain_receipts:
             return 0.0
@@ -81,11 +89,16 @@ class YieldMeter:
         score = min(100, len(confirmed) * 25)
         return round(score, 1)
 
-    def measure(self, artifacts: List[Dict] = None,
-                tests_passed: int = 0, tests_total: int = 0,
-                lint_passed: bool = False, security_flags: int = 0,
-                market_receipts: List[Dict] = None,
-                chain_receipts: List[Dict] = None) -> YieldReport:
+    def measure(
+        self,
+        artifacts: list[dict] | None = None,
+        tests_passed: int = 0,
+        tests_total: int = 0,
+        lint_passed: bool = False,
+        security_flags: int = 0,
+        market_receipts: list[dict] | None = None,
+        chain_receipts: list[dict] | None = None,
+    ) -> YieldReport:
         """Measure all yield types and return a YieldReport."""
         artifacts = artifacts or []
         market_receipts = market_receipts or []
@@ -99,15 +112,12 @@ class YieldMeter:
         chain = self.score_chain_yield(chain_receipts)
 
         # Weighted total: artifact and validation matter most for internal scoring
-        total = (
-            artifact * 0.35 +
-            validation * 0.35 +
-            market * 0.15 +
-            chain * 0.15
-        )
+        total = artifact * 0.35 + validation * 0.35 + market * 0.15 + chain * 0.15
 
         real_revenue = sum(
-            r.get("amount", 0) for r in market_receipts if r.get("status") == "confirmed"
+            r.get("amount", 0)
+            for r in market_receipts
+            if r.get("status") == "confirmed"
         )
 
         return YieldReport(
