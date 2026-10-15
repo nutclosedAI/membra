@@ -31,6 +31,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+foundry = ["cryptography>=44.0,<51"]
 dev = ["pytest>=7.4.0", "pytest-asyncio>=0.21.0", "black>=23.0", "ruff>=0.1.0"]
 
 [tool.setuptools.packages.find]
