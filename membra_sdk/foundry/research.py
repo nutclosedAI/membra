@@ -37,7 +37,7 @@ def prior_art(query: str = 'all:"deep hedging"', limit: int = 5) -> dict:
     return {
         "query": query,
         "endpoint": url,
-        "retrieved_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "retrieved_at": dt.datetime.now(dt.UTC).isoformat(),
         "sources": sources,
         "content_sha256": digest(sources),
         "novelty": "unresolved",

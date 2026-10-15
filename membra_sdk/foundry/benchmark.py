@@ -6,6 +6,7 @@ import json
 import math
 import statistics as st
 from dataclasses import asdict, dataclass, replace
+from itertools import pairwise
 from pathlib import Path
 
 from .tfl import Policy, digest, number
@@ -239,10 +240,7 @@ def tournament(
     boundaries = [warmup + (split - warmup) * k // 3 for k in range(4)]
     runs: dict[str, dict] = {}
     for p in policies:
-        folds = [
-            simulate(p, market, a, b, execution)
-            for a, b in zip(boundaries, boundaries[1:])
-        ]
+        folds = [simulate(p, market, a, b, execution) for a, b in pairwise(boundaries)]
         combined = [r for fold in folds for r in fold["daily"]]
         stress = simulate(
             p,

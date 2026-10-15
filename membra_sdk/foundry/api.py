@@ -72,7 +72,7 @@ def make_server(
                 raise ValueError("body size must be 1..262144 bytes")
             obj = json.loads(self.rfile.read(length))
             if not isinstance(obj, dict):
-                raise ValueError("JSON object required")
+                raise TypeError("JSON object required")
             return obj
 
         def dispatch(self, method: str) -> None:

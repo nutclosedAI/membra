@@ -30,7 +30,7 @@ def save(path: str | Path, obj: object) -> None:
 def fetch(path: str, hours: int) -> None:
     if not 2000 <= hours <= 12000:
         raise ValueError("2000..12000 hours required")
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     end = now.replace(minute=0, second=0, microsecond=0) - dt.timedelta(hours=1)
     rows: dict[int, list] = {}
     for offset in range(0, hours, 300):

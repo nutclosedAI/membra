@@ -53,7 +53,10 @@ class Policy:
 
     @property
     def identity(self) -> str:
-        return digest(asdict(self))
+        fields = asdict(self)
+        for field in ("capital", "max_drawdown", "max_exposure", "threshold"):
+            fields[field] = float(fields[field])
+        return digest(fields)
 
     def spec(self) -> dict:
         return {

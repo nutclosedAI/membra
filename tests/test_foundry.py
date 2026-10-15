@@ -137,12 +137,12 @@ class ReceiptTests(unittest.TestCase):
             )
             self.receipts.append(receipt)
             self.openings.append(opening)
-        self.checkpoint = dict(
-            expected_policy="policy",
-            expected_license="customer",
-            expected_count=3,
-            expected_head=digest(self.receipts[-1]),
-        )
+        self.checkpoint = {
+            "expected_policy": "policy",
+            "expected_license": "customer",
+            "expected_count": 3,
+            "expected_head": digest(self.receipts[-1]),
+        }
 
     def valid(self, receipts: list[dict], key: str | None = None) -> bool:
         return verify_chain(receipts, key or self.issuer.public_key, **self.checkpoint)
@@ -224,9 +224,7 @@ class BenchmarkTests(unittest.TestCase):
     def test_no_future_price_in_target(self) -> None:
         p = descendants(self.policy)[0]
         altered = list(self.market.candles)
-        altered[200:] = [
-            tuple([r[0], *[v * 10 for v in r[1:5]], r[5]]) for r in altered[200:]
-        ]
+        altered[200:] = [(r[0], *[v * 10 for v in r[1:5]], r[5]) for r in altered[200:]]
         a = simulate(p, self.market, 168, 199, Execution())
         b = simulate(p, Market(tuple(altered), {}), 168, 199, Execution())
         self.assertEqual(a["actions"], b["actions"])

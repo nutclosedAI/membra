@@ -6,9 +6,9 @@ import json
 import sqlite3
 import threading
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Iterator
 from urllib.parse import urlparse
 
 from .benchmark import Execution, Market, tournament
