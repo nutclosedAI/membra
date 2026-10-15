@@ -37,3 +37,9 @@ Thumbs.db
 # Membra workspace
 .membra/
 *.log
+
+# Research artifacts may contain proprietary decisions or auditor openings.
+artifacts/
+*.db
+*.db-wal
+*.db-shm

@@ -1,0 +1,47 @@
+name: Strategy foundry
+on:
+  pull_request:
+    paths:
+      - "membra_sdk/foundry/**"
+      - "membra_sdk/trace/**"
+      - "tests/test_foundry.py"
+      - "tests/test_trace.py"
+      - "data/foundry/**"
+      - "pyproject.toml"
+      - ".github/workflows/foundry.yml"
+  push:
+    branches: [main]
+    paths:
+      - "membra_sdk/foundry/**"
+      - "membra_sdk/trace/**"
+      - "tests/test_foundry.py"
+      - "tests/test_trace.py"
+      - "data/foundry/**"
+      - "pyproject.toml"
+      - ".github/workflows/foundry.yml"
+jobs:
+  foundry:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[foundry,trace,dev]"
+      - run: ruff check membra_sdk/foundry membra_sdk/trace tests/test_foundry.py tests/test_trace.py
+      - run: black --check membra_sdk/foundry membra_sdk/trace tests/test_foundry.py tests/test_trace.py
+      - run: python -m compileall -q membra_sdk/foundry membra_sdk/trace
+      - run: python -m mypy --follow-imports=silent --ignore-missing-imports --check-untyped-defs membra_sdk/trace
+      - run: python -m unittest discover -s tests -p test_foundry.py -v
+      - run: python -m unittest discover -s tests -p test_trace.py -v
+      - name: Real-history reproducibility experiment (offline, no live claims)
+        run: |
+          mkdir artifacts
+          python -m membra_sdk.foundry run --data data/foundry/BTC-USD-1h.json --db artifacts/foundry.db --output artifacts/report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: foundry-research-${{ matrix.python }}
+          path: artifacts/*.json
