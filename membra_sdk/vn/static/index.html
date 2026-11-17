@@ -70,6 +70,7 @@
   const KEY = "membra.vn";
   let creds = JSON.parse(localStorage.getItem(KEY) || "null");
   let ws, iceServers = [], call = null, retry = 1000;
+  const seen = new Set();
 
   const status = (text, cls = "") => { $("status").textContent = text; $("status").className = "dim " + cls; };
   const show = (id, on) => $(id).classList.toggle("hidden", !on);
@@ -89,6 +90,8 @@
   }
 
   function addMessage(m) {
+    if (seen.has(m.id)) return;
+    seen.add(m.id);
     const mine = m.from === creds.number;
     const el = document.createElement("div");
     el.className = "msg " + (mine ? "out" : "in");
@@ -107,6 +110,7 @@
     const r = await fetch("/api/messages", { headers: { Authorization: "Bearer " + creds.token } });
     if (r.status === 401) { signOut("This device was signed out."); return false; }
     $("log").textContent = "";
+    seen.clear();
     (await r.json()).forEach(addMessage);
     return true;
   }
