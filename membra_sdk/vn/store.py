@@ -157,6 +157,15 @@ class VNStore:
             self._db.commit()
             return cur.rowcount
 
+    def revoke_device(self, token: str) -> bool:
+        with self._lock:
+            cur = self._db.execute(
+                "UPDATE devices SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL",
+                (time.time(), _hash(token)),
+            )
+            self._db.commit()
+            return cur.rowcount == 1
+
     def number_exists(self, number: str) -> bool:
         return (
             self._db.execute(

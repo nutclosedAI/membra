@@ -189,6 +189,7 @@
   function signOut(msg) {
     if (call) send({ type: "hangup", to: call.peer, call_id: call.id });
     endCall();
+    if (creds) fetch("/api/signout", { method: "POST", headers: { Authorization: "Bearer " + creds.token }, keepalive: true });
     localStorage.removeItem(KEY); creds = null; ws && (ws.onclose = null, ws.close());
     show("phone", false); show("signout", false); show("welcome", true); $("me").textContent = "VN";
     $("welcome-error").textContent = msg || ""; status("no number");

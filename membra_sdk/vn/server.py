@@ -123,6 +123,12 @@ async def messages(request: web.Request) -> web.Response:
     return web.json_response([m.to_dict() for m in store.history(number)])
 
 
+async def signout(request: web.Request) -> web.Response:
+    if not request.app[STORE_KEY].revoke_device(_bearer(request)):
+        raise web.HTTPUnauthorized(text="device token required")
+    return web.Response(status=204)
+
+
 async def _send_to(app: web.Application, number: str, payload: dict) -> int:
     sent = 0
     for ws in list(app[ONLINE_KEY].get(number, ())):
@@ -239,5 +245,6 @@ def create_app(
     app.router.add_get("/api/numbers", list_numbers)
     app.router.add_post("/api/activate", activate)
     app.router.add_get("/api/messages", messages)
+    app.router.add_post("/api/signout", signout)
     app.router.add_get("/ws", websocket)
     return app
