@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VN phone</title>
+<style>
+  :root { color-scheme: dark; --bg:#0b0d10; --card:#151a20; --line:#242b33; --fg:#e8edf2; --dim:#8a96a3; --acc:#3ddc97; --on-acc:#04140c; --bad:#ff5d5d;
+    --field:#0f1318; --btn:#1d242c; --in:#1d242c; --out:#164d36; --r:12px; --font:system-ui, -apple-system, sans-serif; }
+  /* Themes: pick with ?theme=1..12 (remembered on this device). 1 is the default above. */
+  [data-theme="2"]  { color-scheme: light; --bg:#f6f5f1; --card:#fff; --line:#e3e0d8; --fg:#1a1a1a; --dim:#6b6b6b; --acc:#1a1a1a; --on-acc:#fff; --field:#fbfaf7; --btn:#efede7; --in:#efede7; --out:#dfe9e2; --r:4px; --font:Georgia, "Times New Roman", serif; }
+  [data-theme="3"]  { --bg:#000; --card:#020a02; --line:#0f3d0f; --fg:#33ff66; --dim:#1f9e3f; --acc:#33ff66; --on-acc:#000; --field:#000; --btn:#031a03; --in:#031a03; --out:#0a3a14; --r:0; --font:ui-monospace, Menlo, Consolas, monospace; }
+  [data-theme="4"]  { --bg:#06141f; --card:#0b2233; --line:#15405c; --fg:#e3f3ff; --dim:#86a9c2; --acc:#2fb4ff; --on-acc:#021622; --field:#061a28; --btn:#123049; --in:#123049; --out:#0d4f7a; }
+  [data-theme="5"]  { --bg:#1a0d14; --card:#2a1420; --line:#4a2335; --fg:#ffe9df; --dim:#c49a8f; --acc:#ff8a4c; --on-acc:#2a0d00; --field:#1f0f17; --btn:#3a1c2b; --in:#3a1c2b; --out:#7a3324; --r:18px; }
+  [data-theme="6"]  { color-scheme: light; --bg:#fff; --card:#fff; --line:#000; --fg:#000; --dim:#555; --acc:#000; --on-acc:#fff; --bad:#000; --field:#fff; --btn:#fff; --in:#eee; --out:#ddd; --r:0; --font:Helvetica, Arial, sans-serif; }
+  [data-theme="7"]  { --bg:#0a0014; --card:#150026; --line:#3d0a6b; --fg:#f6e9ff; --dim:#a98bc4; --acc:#ff2bd6; --on-acc:#1a0014; --field:#0f001d; --btn:#25003f; --in:#25003f; --out:#5a0a63; --r:14px; }
+  [data-theme="8"]  { --bg:#0c140e; --card:#142218; --line:#253b2a; --fg:#e6f2e7; --dim:#8fa893; --acc:#8bd450; --on-acc:#0d1a05; --field:#0f1a12; --btn:#1d3022; --in:#1d3022; --out:#2f5a2a; }
+  [data-theme="9"]  { color-scheme: light; --bg:#f3eadb; --card:#fbf5ea; --line:#e0d2b8; --fg:#3b2f20; --dim:#8a7759; --acc:#c26a2e; --on-acc:#fff; --field:#fffaf1; --btn:#ecdfc6; --in:#ecdfc6; --out:#f0cfae; --r:10px; }
+  [data-theme="10"] { --bg:#000; --card:#000; --line:#fff; --fg:#fff; --dim:#ffeb3b; --acc:#ffeb3b; --on-acc:#000; --bad:#ff3b3b; --field:#000; --btn:#000; --in:#1a1a1a; --out:#333; --r:6px; }
+  [data-theme="11"] { color-scheme: light; --bg:#f4f1fb; --card:#fff; --line:#e1dbf3; --fg:#2a2340; --dim:#7c7499; --acc:#7a5cff; --on-acc:#fff; --field:#faf9ff; --btn:#ece8fb; --in:#ece8fb; --out:#ddd4ff; --r:16px; }
+  [data-theme="12"] { color-scheme: light; --bg:#fff; --card:#fff; --line:#f1d6e6; --fg:#1d1d1f; --dim:#7a6a73; --acc:#e20074; --on-acc:#fff; --field:#fff; --btn:#fbeef5; --in:#f4f4f6; --out:#fde3f0; --r:20px; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.4 var(--font); background:var(--bg); color:var(--fg); }
+  main { max-width:520px; margin:0 auto; padding:16px; }
+  header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  h1 { font-size:22px; margin:0; letter-spacing:.5px; }
+  .dim { color:var(--dim); font-size:13px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:12px; margin-bottom:12px; }
+  input, textarea, button, select { font:inherit; color:inherit; border-radius:calc(var(--r) * .66); border:1px solid var(--line); background:var(--field); padding:10px; }
+  input, textarea { width:100%; }
+  textarea { resize:vertical; min-height:44px; }
+  button { cursor:pointer; background:var(--btn); }
+  button.go { background:var(--acc); color:var(--on-acc); border-color:var(--acc); font-weight:600; }
+  button.bad { background:var(--bad); color:#fff; border-color:var(--bad); }
+  .row { display:flex; gap:8px; margin-top:8px; }
+  .row > * { flex:1; }
+  #log { max-height:50vh; overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
+  .msg { padding:8px 10px; border-radius:calc(var(--r) * .8); max-width:85%; word-wrap:break-word; }
+  .in { background:var(--in); align-self:flex-start; }
+  .out { background:var(--out); align-self:flex-end; }
+  .meta { font-size:11px; color:var(--dim); }
+  #status.ok { color:var(--acc); } #status.bad { color:var(--bad); }
+  .hidden { display:none !important; }
+</style>
+<script>
+  (() => {
+    const t = new URLSearchParams(location.search).get("theme");
+    if (t) localStorage.setItem("membra.vn.theme", t);
+    const v = localStorage.getItem("membra.vn.theme");
+    if (/^([1-9]|1[0-2])$/.test(v || "")) document.documentElement.dataset.theme = v;
+  })();
+</script>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1 id="me">VN</h1><div id="status" class="dim">starting…</div></div>
+    <div><select id="theme" aria-label="Theme"></select> <button id="signout" class="hidden">Sign out</button></div>
+  </header>
+
+  <section id="welcome" class="card hidden">
+    <b>No number on this device.</b>
+    <p class="dim">Scan your one-time VN activation QR. It opens this page and activates the number here.</p>
+    <p id="welcome-error" class="dim"></p>
+  </section>
+
+  <section id="phone" class="hidden">
+    <div id="incoming" class="card hidden">
+      <b>Incoming call</b> from <span id="incoming-from"></span>
+      <div class="row"><button id="accept" class="go">Answer</button><button id="decline" class="bad">Decline</button></div>
+    </div>
+    <div id="incall" class="card hidden">
+      <b id="incall-label"></b> <span id="incall-state" class="dim"></span>
+      <div class="row"><button id="hangup" class="bad">Hang up</button></div>
+    </div>
+    <div class="card">
+      <input id="to" placeholder="To: +999…" inputmode="tel" autocomplete="off">
+      <div class="row"><button id="call" class="go">Call</button></div>
+    </div>
+    <div class="card">
+      <div id="log"></div>
+      <div class="row"><textarea id="body" placeholder="Text message" maxlength="1600"></textarea></div>
+      <div class="row"><button id="send">Send text</button></div>
+    </div>
+  </section>
+  <audio id="remote" autoplay playsinline></audio>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const KEY = "membra.vn";
+  let creds = JSON.parse(localStorage.getItem(KEY) || "null");
+  let ws, iceServers = [], call = null, retry = 1000;
+  const seen = new Set();
+
+  const status = (text, cls = "") => { $("status").textContent = text; $("status").className = "dim " + cls; };
+  const show = (id, on) => $(id).classList.toggle("hidden", !on);
+  const send = (obj) => ws && ws.readyState === 1 && ws.send(JSON.stringify(obj));
+
+  async function activateFromHash() {
+    const m = location.hash.match(/^#vn:1\$([^$]+)\$(.+)$/);
+    if (!m) return;
+    const [, server, code] = m;
+    if (server !== location.host) { location.replace(`https://${server}/${location.hash}`); return new Promise(() => {}); }
+    history.replaceState(null, "", location.pathname);
+    status("activating…");
+    const r = await fetch("/api/activate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+    if (!r.ok) { $("welcome-error").textContent = "Activation failed: " + await r.text(); return; }
+    creds = await r.json();
+    localStorage.setItem(KEY, JSON.stringify(creds));
+  }
+
+  function addMessage(m) {
+    if (seen.has(m.id)) return;
+    seen.add(m.id);
+    const mine = m.from === creds.number;
+    const el = document.createElement("div");
+    el.className = "msg " + (mine ? "out" : "in");
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = (mine ? "to " + m.to : "from " + m.from) + " · " + new Date(m.at * 1000).toLocaleString();
+    const body = document.createElement("div");
+    body.textContent = m.body;
+    el.append(meta, body);
+    $("log").append(el);
+    $("log").scrollTop = $("log").scrollHeight;
+    if (!mine && !$("to").value) $("to").value = m.from;
+  }
+
+  async function loadHistory() {
+    const r = await fetch("/api/messages", { headers: { Authorization: "Bearer " + creds.token } });
+    if (r.status === 401) { signOut("This device was signed out."); return false; }
+    $("log").textContent = "";
+    seen.clear();
+    (await r.json()).forEach(addMessage);
+    return true;
+  }
+
+  function connect() {
+    ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+    ws.onopen = () => send({ type: "auth", token: creds.token });
+    ws.onmessage = (e) => onSignal(JSON.parse(e.data));
+    ws.onclose = () => { status("offline, reconnecting…", "bad"); setTimeout(connect, retry = Math.min(retry * 2, 15000)); };
+  }
+
+  async function onSignal(d) {
+    switch (d.type) {
+      case "ready": retry = 1000; status("online", "ok"); break;
+      case "sms": send({ type: "ack", id: d.message.id }); addMessage(d.message); if (document.hidden && Notification?.permission === "granted") new Notification("Text from " + d.message.from, { body: d.message.body }); break;
+      case "sent": addMessage(d.message); $("body").value = ""; break;
+      case "error": if (d.error === "unauthorized") signOut("This device was signed out."); else alert(d.error); break;
+      case "call": if (call) send({ type: "reject", to: d.from, call_id: d.call_id, busy: true }); else ringIn(d); break;
+      case "answer": if (call && call.id === d.call_id) { await call.pc.setRemoteDescription(d.sdp); flushIce(); $("incall-state").textContent = "connected"; } break;
+      case "ice": if (call && call.id === d.call_id) { call.remoteSet ? call.pc.addIceCandidate(d.candidate) : call.pending.push(d.candidate); } break;
+      case "hangup": case "reject": if (call && call.id === d.call_id) endCall(d.reason || (d.type === "reject" ? "declined" : "ended")); break;
+    }
+  }
+
+  function flushIce() { call.remoteSet = true; call.pending.splice(0).forEach((c) => call.pc.addIceCandidate(c)); }
+
+  async function newPeer(peer, id) {
+    const pc = new RTCPeerConnection({ iceServers });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+    pc.onicecandidate = (e) => e.candidate && send({ type: "ice", to: peer, call_id: id, candidate: e.candidate });
+    pc.ontrack = (e) => { $("remote").srcObject = e.streams[0]; };
+    pc.onconnectionstatechange = () => { if (call) $("incall-state").textContent = pc.connectionState; if (pc.connectionState === "failed") endCall("connection failed"); };
+    call = { id, peer, pc, stream, pending: [], remoteSet: false };
+    return pc;
+  }
+
+  function inCall(label) { show("incoming", false); show("incall", true); $("incall-label").textContent = label; }
+
+  async function dial() {
+    const to = $("to").value.replace(/[^\d+]/g, "");
+    if (!to || call) return;
+    const id = crypto.randomUUID();
+    try {
+      const pc = await newPeer(to, id);
+      inCall("Calling " + to); $("incall-state").textContent = "ringing";
+      await pc.setLocalDescription(await pc.createOffer());
+      send({ type: "call", to, call_id: id, sdp: pc.localDescription });
+    } catch (e) { endCall(); alert("Microphone error: " + e.message); }
+  }
+
+  function ringIn(d) {
+    call = { id: d.call_id, peer: d.from, offer: d.sdp, pending: [], remoteSet: false, ringing: true };
+    $("incoming-from").textContent = d.from; show("incoming", true);
+  }
+
+  async function accept() {
+    const { id, peer, offer, pending } = call;
+    try {
+      const pc = await newPeer(peer, id);
+      call.pending = pending;
+      await pc.setRemoteDescription(offer); flushIce();
+      await pc.setLocalDescription(await pc.createAnswer());
+      send({ type: "answer", to: peer, call_id: id, sdp: pc.localDescription });
+      inCall("In call with " + peer); $("incall-state").textContent = "connecting";
+    } catch (e) { send({ type: "hangup", to: peer, call_id: id }); endCall(); alert("Microphone error: " + e.message); }
+  }
+
+  function endCall(reason) {
+    if (call) { call.pc?.close(); call.stream?.getTracks().forEach((t) => t.stop()); }
+    call = null; $("remote").srcObject = null;
+    show("incoming", false); show("incall", false);
+    if (reason) status("call " + reason, "");
+  }
+
+  function signOut(msg) {
+    if (call) send({ type: "hangup", to: call.peer, call_id: call.id });
+    endCall();
+    if (creds) fetch("/api/signout", { method: "POST", headers: { Authorization: "Bearer " + creds.token }, keepalive: true });
+    localStorage.removeItem(KEY); creds = null; ws && (ws.onclose = null, ws.close());
+    show("phone", false); show("signout", false); show("welcome", true); $("me").textContent = "VN";
+    $("welcome-error").textContent = msg || ""; status("no number");
+  }
+
+  ["Midnight", "Paper", "Terminal", "Ocean", "Sunset", "Mono", "Neon", "Forest", "Sand", "High contrast", "Lavender", "Bloom"].forEach((name, i) => $("theme").add(new Option(`${i + 1}. ${name}`, String(i + 1))));
+  $("theme").value = document.documentElement.dataset.theme || "1";
+  $("theme").onchange = () => { localStorage.setItem("membra.vn.theme", $("theme").value); document.documentElement.dataset.theme = $("theme").value; };
+  $("call").onclick = dial;
+  $("accept").onclick = accept;
+  $("decline").onclick = () => { send({ type: "reject", to: call.peer, call_id: call.id }); endCall(); };
+  $("hangup").onclick = () => { send({ type: "hangup", to: call.peer, call_id: call.id }); endCall("ended"); };
+  $("send").onclick = () => { const to = $("to").value.replace(/[^\d+]/g, ""), body = $("body").value.trim(); if (to && body) send({ type: "sms", to, body }); };
+  $("body").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("send").click(); } };
+  $("signout").onclick = () => confirm("Remove this number from this device? You will need a new activation QR.") && signOut();
+
+  // A pasted activation link on an open page only changes the hash; reload to run it.
+  window.addEventListener("hashchange", () => { if (location.hash.startsWith("#vn:1$")) location.reload(); });
+
+  (async () => {
+    await activateFromHash();
+    if (!creds) { show("welcome", true); status("no number"); return; }
+    if (!(await loadHistory())) return;
+    iceServers = (await (await fetch("/api/config", { headers: { Authorization: "Bearer " + creds.token } })).json()).ice_servers;
+    $("me").textContent = creds.number; show("phone", true); show("signout", true);
+    if (window.Notification && Notification.permission === "default") Notification.requestPermission();
+    connect();
+  })();
+})();
+</script>
+</body>
+</html>

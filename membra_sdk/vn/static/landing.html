@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VN</title>
+<style>
+  :root { --bg:#fff; --fg:#111; --dim:#666; --acc:#111; --font:system-ui, -apple-system, sans-serif; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.55 var(--font); }
+  main { max-width:760px; margin:0 auto; padding:48px 24px 72px; }
+  nav { display:flex; justify-content:space-between; align-items:center; margin-bottom:72px; }
+  nav b { font-size:20px; letter-spacing:.3px; }
+  nav a { color:var(--fg); margin-left:20px; text-decoration:none; font-size:15px; }
+  .tag { color:var(--dim); font-size:14px; text-transform:uppercase; letter-spacing:1.5px; }
+  h1 { font-size:clamp(34px, 6vw, 54px); line-height:1.08; margin:12px 0 20px; letter-spacing:-.5px; }
+  .lede { font-size:20px; color:var(--dim); max-width:600px; }
+  .cta { display:inline-block; margin-top:28px; padding:12px 22px; background:var(--acc); color:var(--bg); text-decoration:none; border-radius:6px; font-weight:600; }
+  section { margin-top:72px; }
+  h2 { font-size:14px; text-transform:uppercase; letter-spacing:1.5px; color:var(--dim); font-weight:600; }
+  h3 { margin:28px 0 6px; font-size:22px; }
+  p { margin:0; }
+  footer { margin-top:96px; color:var(--dim); font-size:13px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+  footer a { color:var(--dim); }
+  .pages a { color:var(--dim); margin-right:10px; }
+</style>
+</head>
+<body>
+<main>
+  <nav><b id="brand">VN</b><div><a href="#what">What we do</a><a href="#contact">Get in touch</a></div></nav>
+  <div class="tag" id="tag"></div>
+  <h1 id="h1"></h1>
+  <p class="lede" id="lede"></p>
+  <a class="cta" id="cta" href="/">Open the phone</a>
+  <section id="what"><h2>What we do</h2><div id="blocks"></div></section>
+  <section id="contact"><h2>Get in touch</h2><p id="contact-line"></p></section>
+  <footer><span>© <span id="year"></span> <span id="brand2"></span> · Numbers are on a private network and do not reach ordinary phones yet.</span><span class="pages" id="pages"></span></footer>
+</main>
+<script>
+(() => {
+  // [brand, tag, headline, lede, [[title, text] x3], bg, fg, dim, accent, font]
+  const SERIF = 'Georgia, "Times New Roman", serif', MONO = "ui-monospace, Menlo, Consolas, monospace", SANS = "system-ui, -apple-system, sans-serif";
+  const V = [
+    ["VN", "Virtual numbers", "A phone number that lives in a web page", "Scan a one-time QR and any browser becomes a phone line. Calls and texts, no SIM, no app store.",
+      [["Scan to activate", "Like an eSIM, each number ships as a one-time activation code. Scan it once and it is yours."], ["Calls in the browser", "Encrypted WebRTC voice between numbers, straight from the page."], ["Texts that wait", "Messages are stored and delivered the moment the other phone comes back online."]],
+      "#fff", "#111", "#666", "#111", SANS],
+    ["VN", "Telecom, rebuilt", "The carrier is a URL", "We issue numbers, route texts and connect calls over the open web. Your phone is any screen with a browser.",
+      [["Numbers on demand", "Issue a number in one request and hand it out as a QR."], ["One scan, one device", "Activation codes burn on first use, so a leaked QR is worthless."], ["Revoke anytime", "Cut a lost device off the network instantly."]],
+      "#f6f5f1", "#1a1a1a", "#6b6b6b", "#1a1a1a", SERIF],
+    ["vn://", "$ vn issue", "numbers --as-a-service", "Self-hosted virtual numbers. One Python process, one SQLite file, one QR per number.",
+      [["python -m membra_sdk.vn serve", "Run the whole network on a laptop or a VPS."], ["vn:1$host$code", "An eSIM-style activation string, encoded as a QR."], ["/ws", "Texts and call signaling over a single authenticated socket."]],
+      "#000", "#33ff66", "#1f9e3f", "#33ff66", MONO],
+    ["VN", "For teams", "Give every teammate a line in seconds", "Print a QR, hand it over, done. The number works in the browser they already have.",
+      [["No hardware", "No SIM cards to ship and no phones to provision."], ["Private by default", "Numbers sit on your own network and talk only to each other."], ["Your server", "Run it on infrastructure you control. Your data never leaves it."]],
+      "#06141f", "#e3f3ff", "#86a9c2", "#2fb4ff", SANS],
+    ["VN", "For events", "A number for every guest", "Hand out QR badges at the door. Guests text and call each other from their browsers, and the numbers expire when you say so.",
+      [["Badge-ready QR", "Every number prints as a scannable code."], ["Time-boxed", "Activation codes expire on a schedule you set."], ["Zero install", "Works in the browser on any modern phone."]],
+      "#1a0d14", "#ffe9df", "#c49a8f", "#ff8a4c", SANS],
+    ["VN", "Minimal", "Number. QR. Phone.", "That is the whole product.",
+      [["Number", "Issued by our server."], ["QR", "Works once."], ["Phone", "Any browser."]],
+      "#fff", "#000", "#555", "#000", "Helvetica, Arial, sans-serif"],
+    ["VN", "Developers", "Twilio-style numbers, without Twilio", "An open stack for numbers, texts and calls you run yourself. A REST API to issue numbers and a WebSocket for everything else.",
+      [["POST /api/numbers", "Returns the number, its activation URL and a QR as PNG."], ["WebRTC", "Peer-to-peer audio. The server only relays signaling."], ["Open source", "Read every line that touches your traffic."]],
+      "#0a0014", "#f6e9ff", "#a98bc4", "#ff2bd6", SANS],
+    ["VN", "Privacy", "A second number that is actually separate", "Keep a line apart from your personal SIM. It lives in a browser profile and leaves when you sign out.",
+      [["Codes stay off the wire", "The activation code rides in the URL fragment, which browsers never send to the server."], ["Hashed at rest", "Activation codes and device tokens are stored only as hashes."], ["Sign out means gone", "Signing out revokes the device on the server."]],
+      "#0c140e", "#e6f2e7", "#8fa893", "#8bd450", SANS],
+    ["VN", "Small business", "A front-desk line that fits in a tab", "Answer customers from the laptop at the counter. The number stays the same when staff change.",
+      [["Many devices, one number", "Ring every device on a number. The first to answer takes the call."], ["History kept", "Texts persist, so the next shift sees the conversation."], ["Simple handover", "Issue a fresh QR for a new device and revoke the old one."]],
+      "#f3eadb", "#3b2f20", "#8a7759", "#c26a2e", SERIF],
+    ["VN", "Accessible", "Big buttons. Clear calls.", "A phone page that works with screen readers, keyboards and high-contrast displays.",
+      [["Keyboard first", "Every action has a real button. Enter sends a text."], ["Readable", "Twelve themes, including high contrast."], ["Plain HTML", "No app or plugin required."]],
+      "#000", "#fff", "#ffeb3b", "#ffeb3b", SANS],
+    ["VN", "Education", "A classroom phone network in one command", "Give each student a number to learn how calls, texts and signaling work, on a network that can't reach the outside world.",
+      [["Sandboxed", "The private +999 range only reaches other numbers on your server."], ["Observable", "Every text sits in one SQLite file you can inspect."], ["Hackable", "Small enough to read in an afternoon."]],
+      "#f4f1fb", "#2a2340", "#7c7499", "#7a5cff", SANS],
+    ["VN", "Next: the public phone network", "From private numbers to real ones", "Today our numbers reach each other. Next we connect to the public phone network through licensed carrier partners.",
+      [["Today", "Browser-to-browser calls and texts between VN numbers."], ["Next", "A SIP trunk for calls and texts to ordinary phones."], ["Then", "Our own numbering authorization, with STIR/SHAKEN call signing and E911."]],
+      "#fff", "#1d1d1f", "#7a6a73", "#e20074", SANS],
+  ];
+  const m = location.pathname.match(/\/landing\/(\d+)$/);
+  const n = Math.min(Math.max(parseInt(m ? m[1] : "1", 10) || 1, 1), V.length);
+  const [brand, tag, h1, lede, blocks, bg, fg, dim, acc, font] = V[n - 1];
+  const root = document.documentElement.style;
+  [["--bg", bg], ["--fg", fg], ["--dim", dim], ["--acc", acc], ["--font", font]].forEach(([k, v]) => root.setProperty(k, v));
+  const $ = (id) => document.getElementById(id);
+  document.title = `${brand} · ${h1}`;
+  $("brand").textContent = $("brand2").textContent = brand;
+  $("tag").textContent = tag; $("h1").textContent = h1; $("lede").textContent = lede;
+  $("cta").href = "/?theme=" + n;
+  blocks.forEach(([t, p]) => { const h = document.createElement("h3"); h.textContent = t; const q = document.createElement("p"); q.textContent = p; $("blocks").append(h, q); });
+  const contact = document.querySelector('meta[name="vn-contact"]')?.content;
+  if (contact) { const a = document.createElement("a"); a.href = "mailto:" + contact; a.textContent = contact; a.style.color = "inherit"; $("contact-line").append(a); }
+  else $("contact-line").textContent = "Ask the operator of this server for a number.";
+  $("year").textContent = new Date().getFullYear();
+  for (let i = 1; i <= V.length; i++) { const a = document.createElement("a"); a.href = "/landing/" + i; a.textContent = i; if (i === n) a.style.fontWeight = "700"; $("pages").append(a); }
+})();
+</script>
+</body>
+</html>
