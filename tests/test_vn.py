@@ -109,6 +109,11 @@ async def _messaging_and_calls():
         queued = await wb.receive_json(timeout=5)
         assert queued["type"] == "sms" and queued["message"]["body"] == "hello"
         assert queued["message"]["from"] == a["number"]
+        await wb.close()
+        wb = await _phone(client, b["token"])
+        resent = await wb.receive_json(timeout=5)
+        assert resent["message"]["id"] == queued["message"]["id"]
+        await wb.send_json({"type": "ack", "id": resent["message"]["id"]})
 
         await wb.send_json({"type": "sms", "to": a["number"], "body": "hi back"})
         assert (await wb.receive_json(timeout=5))["type"] == "sent"
@@ -132,7 +137,8 @@ async def _messaging_and_calls():
         assert (await wa.receive_json(timeout=5))["type"] == "answer"
 
         await wb.close()
-        await asyncio.sleep(0.1)
+        dropped = await wa.receive_json(timeout=5)
+        assert dropped["type"] == "hangup" and dropped["call_id"] == "c1"
         await wa.send_json(
             {"type": "call", "to": b["number"], "call_id": "c2", "sdp": offer}
         )
@@ -150,12 +156,86 @@ async def _messaging_and_calls():
         await client.close()
 
 
+async def _devices_and_calls():
+    client = await _client(_store())
+    try:
+        a = await _activate(client, await _issue(client))
+        b_issued = await _issue(client)
+        b1 = await _activate(client, b_issued)
+        b2 = await _activate(
+            client,
+            await (
+                await client.post(
+                    "/api/numbers",
+                    json={"number": b_issued["number"]},
+                    headers={"Authorization": f"Bearer {ADMIN}"},
+                )
+            ).json(),
+        )
+        r = await client.get("/api/config")
+        assert r.status == 401
+        r = await client.get(
+            "/api/config", headers={"Authorization": f"Bearer {a['token']}"}
+        )
+        assert r.status == 200 and "ice_servers" in await r.json()
+
+        wa = await _phone(client, a["token"])
+        w1 = await _phone(client, b1["token"])
+        w2 = await _phone(client, b2["token"])
+        to_b = b_issued["number"]
+
+        # one busy device must not decline for the other; answering stops the rest
+        await wa.send_json({"type": "call", "to": to_b, "call_id": "c1", "sdp": {}})
+        assert (await w1.receive_json(timeout=5))["type"] == "call"
+        assert (await w2.receive_json(timeout=5))["type"] == "call"
+        await w2.send_json(
+            {"type": "reject", "to": a["number"], "call_id": "c1", "busy": True}
+        )
+        await w1.send_json({"type": "answer", "to": a["number"], "call_id": "c1"})
+        assert (await wa.receive_json(timeout=5))["type"] == "answer"
+        stop = await w2.receive_json(timeout=5)
+        assert stop["type"] == "hangup" and stop["call_id"] == "c1"
+        await w2.send_json({"type": "reject", "to": a["number"], "call_id": "c1"})
+        await wa.send_json({"type": "ping"})
+        assert (await wa.receive_json(timeout=5))["type"] == "pong"
+
+        # caller closing mid-ring hangs up both ringing devices
+        wa2 = await _phone(client, a["token"])
+        await wa2.send_json({"type": "call", "to": to_b, "call_id": "c2", "sdp": {}})
+        assert (await w1.receive_json(timeout=5))["call_id"] == "c2"
+        assert (await w2.receive_json(timeout=5))["call_id"] == "c2"
+        await wa2.close()
+        for w in (w1, w2):
+            gone = await w.receive_json(timeout=5)
+            assert gone["type"] == "hangup" and gone["call_id"] == "c2"
+
+        # sign-out revokes the token; a live socket of a revoked device is dropped
+        r = await client.post(
+            "/api/signout", headers={"Authorization": f"Bearer {b2['token']}"}
+        )
+        assert r.status == 204
+        r = await client.get(
+            "/api/messages", headers={"Authorization": f"Bearer {b2['token']}"}
+        )
+        assert r.status == 401
+        await w2.send_json({"type": "sms", "to": a["number"], "body": "x"})
+        assert (await w2.receive_json(timeout=5))["error"] == "unauthorized"
+        for w in (wa, w1, w2):
+            await w.close()
+    finally:
+        await client.close()
+
+
 def test_api_flow():
     asyncio.run(_api_flow())
 
 
 def test_messaging_and_calls():
     asyncio.run(_messaging_and_calls())
+
+
+def test_devices_and_calls():
+    asyncio.run(_devices_and_calls())
 
 
 if __name__ == "__main__":

@@ -20,7 +20,11 @@ def main(argv=None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("serve", help="run the VN server")
-    s.add_argument("--host", default="0.0.0.0")
+    s.add_argument(
+        "--host",
+        default=os.environ.get("VN_HOST", "127.0.0.1"),
+        help="bind address; put a TLS proxy in front before exposing it publicly",
+    )
     s.add_argument("--port", type=int, default=int(os.environ.get("VN_PORT", "8088")))
     s.add_argument("--public-url", default=os.environ.get("VN_PUBLIC_URL"))
     s.add_argument(
