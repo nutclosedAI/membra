@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VN console</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; font:15px/1.4 system-ui, sans-serif; background:#0b0d10; color:#e8edf2; }
+  main { max-width:640px; margin:0 auto; padding:16px; }
+  .card { background:#151a20; border:1px solid #242b33; border-radius:12px; padding:12px; margin-bottom:12px; }
+  input, button { font:inherit; color:inherit; border-radius:8px; border:1px solid #242b33; background:#0f1318; padding:10px; }
+  input { width:100%; margin-bottom:8px; }
+  button { cursor:pointer; background:#3ddc97; color:#04140c; font-weight:600; border-color:#3ddc97; }
+  img { background:#fff; padding:8px; border-radius:8px; width:240px; height:240px; image-rendering:pixelated; }
+  code { word-break:break-all; color:#8a96a3; font-size:12px; }
+  table { width:100%; border-collapse:collapse; } td { padding:4px 0; border-bottom:1px solid #242b33; }
+</style>
+</head>
+<body>
+<main>
+  <h1>VN console</h1>
+  <div class="card">
+    <input id="token" type="password" placeholder="Admin token (VN_ADMIN_TOKEN)" autocomplete="off">
+    <input id="label" placeholder="Label (optional)">
+    <button id="issue">Issue number + one-time QR</button>
+    <p id="err"></p>
+  </div>
+  <div id="out" class="card" hidden>
+    <h2 id="num"></h2>
+    <img id="qr" alt="activation QR">
+    <p>Scan with the phone camera. The code works once and expires <span id="exp"></span>.</p>
+    <code id="url"></code>
+  </div>
+  <div class="card"><b>Numbers</b> <button id="refresh">Refresh</button><table id="list"></table></div>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  $("token").value = sessionStorage.getItem("vn.admin") || "";
+  const auth = () => { sessionStorage.setItem("vn.admin", $("token").value); return { Authorization: "Bearer " + $("token").value, "Content-Type": "application/json" }; };
+  $("issue").onclick = async () => {
+    $("err").textContent = "";
+    const r = await fetch("/api/numbers", { method: "POST", headers: auth(), body: JSON.stringify({ label: $("label").value }) });
+    if (!r.ok) { $("err").textContent = r.status + " " + await r.text(); return; }
+    const d = await r.json();
+    $("num").textContent = d.number; $("qr").src = d.qr_png; $("url").textContent = d.activation_url;
+    $("exp").textContent = new Date(d.expires_at * 1000).toLocaleString(); $("out").hidden = false;
+    refresh();
+  };
+  async function refresh() {
+    const r = await fetch("/api/numbers", { headers: auth() });
+    if (!r.ok) return;
+    $("list").textContent = "";
+    for (const n of await r.json()) {
+      const tr = $("list").insertRow();
+      tr.insertCell().textContent = n.number; tr.insertCell().textContent = n.label; tr.insertCell().textContent = n.online ? "online" : "offline";
+    }
+  }
+  $("refresh").onclick = refresh;
+  if ($("token").value) refresh();
+</script>
+</body>
+</html>

@@ -40,3 +40,6 @@ membra = "membra_sdk.cli.main:app"
 Homepage = "https://github.com/membra-network/membra-sdk"
 Repository = "https://github.com/membra-network/membra-sdk"
 Issues = "https://github.com/membra-network/membra-sdk/issues"
+
+[tool.setuptools.package-data]
+"membra_sdk.vn" = ["static/*.html"]

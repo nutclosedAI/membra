@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VN phone</title>
+<style>
+  :root { color-scheme: dark; --bg:#0b0d10; --card:#151a20; --line:#242b33; --fg:#e8edf2; --dim:#8a96a3; --acc:#3ddc97; --bad:#ff5d5d; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.4 system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width:520px; margin:0 auto; padding:16px; }
+  header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  h1 { font-size:22px; margin:0; letter-spacing:.5px; }
+  .dim { color:var(--dim); font-size:13px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; }
+  input, textarea, button { font:inherit; color:inherit; border-radius:8px; border:1px solid var(--line); background:#0f1318; padding:10px; }
+  input, textarea { width:100%; }
+  textarea { resize:vertical; min-height:44px; }
+  button { cursor:pointer; background:#1d242c; }
+  button.go { background:var(--acc); color:#04140c; border-color:var(--acc); font-weight:600; }
+  button.bad { background:var(--bad); color:#fff; border-color:var(--bad); }
+  .row { display:flex; gap:8px; margin-top:8px; }
+  .row > * { flex:1; }
+  #log { max-height:50vh; overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
+  .msg { padding:8px 10px; border-radius:10px; max-width:85%; word-wrap:break-word; }
+  .in { background:#1d242c; align-self:flex-start; }
+  .out { background:#164d36; align-self:flex-end; }
+  .meta { font-size:11px; color:var(--dim); }
+  #status.ok { color:var(--acc); } #status.bad { color:var(--bad); }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1 id="me">VN</h1><div id="status" class="dim">starting…</div></div>
+    <button id="signout" class="hidden">Sign out</button>
+  </header>
+
+  <section id="welcome" class="card hidden">
+    <b>No number on this device.</b>
+    <p class="dim">Scan your one-time VN activation QR. It opens this page and activates the number here.</p>
+    <p id="welcome-error" class="dim"></p>
+  </section>
+
+  <section id="phone" class="hidden">
+    <div id="incoming" class="card hidden">
+      <b>Incoming call</b> from <span id="incoming-from"></span>
+      <div class="row"><button id="accept" class="go">Answer</button><button id="decline" class="bad">Decline</button></div>
+    </div>
+    <div id="incall" class="card hidden">
+      <b id="incall-label"></b> <span id="incall-state" class="dim"></span>
+      <div class="row"><button id="hangup" class="bad">Hang up</button></div>
+    </div>
+    <div class="card">
+      <input id="to" placeholder="To: +999…" inputmode="tel" autocomplete="off">
+      <div class="row"><button id="call" class="go">Call</button></div>
+    </div>
+    <div class="card">
+      <div id="log"></div>
+      <div class="row"><textarea id="body" placeholder="Text message" maxlength="1600"></textarea></div>
+      <div class="row"><button id="send">Send text</button></div>
+    </div>
+  </section>
+  <audio id="remote" autoplay playsinline></audio>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const KEY = "membra.vn";
+  let creds = JSON.parse(localStorage.getItem(KEY) || "null");
+  let ws, iceServers = [], call = null, retry = 1000;
+
+  const status = (text, cls = "") => { $("status").textContent = text; $("status").className = "dim " + cls; };
+  const show = (id, on) => $(id).classList.toggle("hidden", !on);
+  const send = (obj) => ws && ws.readyState === 1 && ws.send(JSON.stringify(obj));
+
+  async function activateFromHash() {
+    const m = location.hash.match(/^#vn:1\$([^$]+)\$(.+)$/);
+    if (!m) return;
+    const [, server, code] = m;
+    if (server !== location.host) { location.replace(`https://${server}/${location.hash}`); return new Promise(() => {}); }
+    history.replaceState(null, "", location.pathname);
+    status("activating…");
+    const r = await fetch("/api/activate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+    if (!r.ok) { $("welcome-error").textContent = "Activation failed: " + await r.text(); return; }
+    creds = await r.json();
+    localStorage.setItem(KEY, JSON.stringify(creds));
+  }
+
+  function addMessage(m) {
+    const mine = m.from === creds.number;
+    const el = document.createElement("div");
+    el.className = "msg " + (mine ? "out" : "in");
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = (mine ? "to " + m.to : "from " + m.from) + " · " + new Date(m.at * 1000).toLocaleString();
+    const body = document.createElement("div");
+    body.textContent = m.body;
+    el.append(meta, body);
+    $("log").append(el);
+    $("log").scrollTop = $("log").scrollHeight;
+    if (!mine && !$("to").value) $("to").value = m.from;
+  }
+
+  async function loadHistory() {
+    const r = await fetch("/api/messages", { headers: { Authorization: "Bearer " + creds.token } });
+    if (r.status === 401) { signOut("This device was signed out."); return false; }
+    $("log").textContent = "";
+    (await r.json()).forEach(addMessage);
+    return true;
+  }
+
+  function connect() {
+    ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+    ws.onopen = () => send({ type: "auth", token: creds.token });
+    ws.onmessage = (e) => onSignal(JSON.parse(e.data));
+    ws.onclose = () => { status("offline, reconnecting…", "bad"); setTimeout(connect, retry = Math.min(retry * 2, 15000)); };
+  }
+
+  async function onSignal(d) {
+    switch (d.type) {
+      case "ready": retry = 1000; status("online", "ok"); break;
+      case "sms": addMessage(d.message); if (document.hidden && Notification?.permission === "granted") new Notification("Text from " + d.message.from, { body: d.message.body }); break;
+      case "sent": addMessage(d.message); $("body").value = ""; break;
+      case "error": if (d.error === "unauthorized") signOut("This device was signed out."); else alert(d.error); break;
+      case "call": if (call) send({ type: "reject", to: d.from, call_id: d.call_id }); else ringIn(d); break;
+      case "answer": if (call && call.id === d.call_id) { await call.pc.setRemoteDescription(d.sdp); flushIce(); $("incall-state").textContent = "connected"; } break;
+      case "ice": if (call && call.id === d.call_id) { call.remoteSet ? call.pc.addIceCandidate(d.candidate) : call.pending.push(d.candidate); } break;
+      case "hangup": case "reject": if (call && call.id === d.call_id) endCall(d.reason || (d.type === "reject" ? "declined" : "ended")); break;
+    }
+  }
+
+  function flushIce() { call.remoteSet = true; call.pending.splice(0).forEach((c) => call.pc.addIceCandidate(c)); }
+
+  async function newPeer(peer, id) {
+    const pc = new RTCPeerConnection({ iceServers });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+    pc.onicecandidate = (e) => e.candidate && send({ type: "ice", to: peer, call_id: id, candidate: e.candidate });
+    pc.ontrack = (e) => { $("remote").srcObject = e.streams[0]; };
+    pc.onconnectionstatechange = () => { if (call) $("incall-state").textContent = pc.connectionState; if (pc.connectionState === "failed") endCall("connection failed"); };
+    call = { id, peer, pc, stream, pending: [], remoteSet: false };
+    return pc;
+  }
+
+  function inCall(label) { show("incoming", false); show("incall", true); $("incall-label").textContent = label; }
+
+  async function dial() {
+    const to = $("to").value.replace(/[^\d+]/g, "");
+    if (!to || call) return;
+    const id = crypto.randomUUID();
+    try {
+      const pc = await newPeer(to, id);
+      inCall("Calling " + to); $("incall-state").textContent = "ringing";
+      await pc.setLocalDescription(await pc.createOffer());
+      send({ type: "call", to, call_id: id, sdp: pc.localDescription });
+    } catch (e) { endCall(); alert("Microphone error: " + e.message); }
+  }
+
+  function ringIn(d) {
+    call = { id: d.call_id, peer: d.from, offer: d.sdp, pending: [], remoteSet: false, ringing: true };
+    $("incoming-from").textContent = d.from; show("incoming", true);
+  }
+
+  async function accept() {
+    const { id, peer, offer, pending } = call;
+    try {
+      const pc = await newPeer(peer, id);
+      call.pending = pending;
+      await pc.setRemoteDescription(offer); flushIce();
+      await pc.setLocalDescription(await pc.createAnswer());
+      send({ type: "answer", to: peer, call_id: id, sdp: pc.localDescription });
+      inCall("In call with " + peer); $("incall-state").textContent = "connecting";
+    } catch (e) { send({ type: "hangup", to: peer, call_id: id }); endCall(); alert("Microphone error: " + e.message); }
+  }
+
+  function endCall(reason) {
+    if (call) { call.pc?.close(); call.stream?.getTracks().forEach((t) => t.stop()); }
+    call = null; $("remote").srcObject = null;
+    show("incoming", false); show("incall", false);
+    if (reason) status("call " + reason, "");
+  }
+
+  function signOut(msg) {
+    localStorage.removeItem(KEY); creds = null; ws && (ws.onclose = null, ws.close());
+    show("phone", false); show("signout", false); show("welcome", true); $("me").textContent = "VN";
+    $("welcome-error").textContent = msg || ""; status("no number");
+  }
+
+  $("call").onclick = dial;
+  $("accept").onclick = accept;
+  $("decline").onclick = () => { send({ type: "reject", to: call.peer, call_id: call.id }); endCall(); };
+  $("hangup").onclick = () => { send({ type: "hangup", to: call.peer, call_id: call.id }); endCall("ended"); };
+  $("send").onclick = () => { const to = $("to").value.replace(/[^\d+]/g, ""), body = $("body").value.trim(); if (to && body) send({ type: "sms", to, body }); };
+  $("body").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("send").click(); } };
+  $("signout").onclick = () => confirm("Remove this number from this device? You will need a new activation QR.") && signOut();
+
+  (async () => {
+    await activateFromHash();
+    if (!creds) { show("welcome", true); status("no number"); return; }
+    iceServers = (await (await fetch("/api/config")).json()).ice_servers;
+    if (!(await loadHistory())) return;
+    $("me").textContent = creds.number; show("phone", true); show("signout", true);
+    if (window.Notification && Notification.permission === "default") Notification.requestPermission();
+    connect();
+  })();
+})();
+</script>
+</body>
+</html>
