@@ -64,6 +64,8 @@ async def admin_page(request: web.Request) -> web.Response:
 
 
 async def config(request: web.Request) -> web.Response:
+    if not request.app[STORE_KEY].authenticate(_bearer(request)):
+        raise web.HTTPUnauthorized(text="device token required")
     return web.json_response({"ice_servers": request.app[CONFIG_KEY]["ice_servers"]})
 
 

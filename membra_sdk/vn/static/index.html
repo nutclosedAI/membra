@@ -203,8 +203,8 @@
   (async () => {
     await activateFromHash();
     if (!creds) { show("welcome", true); status("no number"); return; }
-    iceServers = (await (await fetch("/api/config")).json()).ice_servers;
     if (!(await loadHistory())) return;
+    iceServers = (await (await fetch("/api/config", { headers: { Authorization: "Bearer " + creds.token } })).json()).ice_servers;
     $("me").textContent = creds.number; show("phone", true); show("signout", true);
     if (window.Notification && Notification.permission === "default") Notification.requestPermission();
     connect();
