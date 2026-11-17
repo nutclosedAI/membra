@@ -1,4 +1,4 @@
-"""CLI: python -m membra_sdk.vn {serve,issue,list,revoke}"""
+"""CLI: python -m membra_sdk.vn {serve,issue,list,contracts,revoke,env}"""
 
 import argparse
 import json
@@ -55,7 +55,15 @@ def main(argv=None) -> int:
     sub.add_parser("contracts", help="resolve the 12 VN event contracts")
     r = sub.add_parser("revoke", help="sign out every device on a number")
     r.add_argument("number")
+    sub.add_parser(
+        "env", help="run the RL environment (--list, --oracle, or JSON on stdin)"
+    )
 
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if "env" in argv:  # the RL environment has its own flags
+        from membra_sdk.vn.rl.env import main as env_main
+
+        return env_main(argv[argv.index("env") + 1 :])
     args = p.parse_args(argv)
     store = VNStore(args.db, prefix=args.prefix)
 
