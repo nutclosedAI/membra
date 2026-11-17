@@ -5,36 +5,57 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VN phone</title>
 <style>
-  :root { color-scheme: dark; --bg:#0b0d10; --card:#151a20; --line:#242b33; --fg:#e8edf2; --dim:#8a96a3; --acc:#3ddc97; --bad:#ff5d5d; }
+  :root { color-scheme: dark; --bg:#0b0d10; --card:#151a20; --line:#242b33; --fg:#e8edf2; --dim:#8a96a3; --acc:#3ddc97; --on-acc:#04140c; --bad:#ff5d5d;
+    --field:#0f1318; --btn:#1d242c; --in:#1d242c; --out:#164d36; --r:12px; --font:system-ui, -apple-system, sans-serif; }
+  /* Themes: pick with ?theme=1..12 (remembered on this device). 1 is the default above. */
+  [data-theme="2"]  { color-scheme: light; --bg:#f6f5f1; --card:#fff; --line:#e3e0d8; --fg:#1a1a1a; --dim:#6b6b6b; --acc:#1a1a1a; --on-acc:#fff; --field:#fbfaf7; --btn:#efede7; --in:#efede7; --out:#dfe9e2; --r:4px; --font:Georgia, "Times New Roman", serif; }
+  [data-theme="3"]  { --bg:#000; --card:#020a02; --line:#0f3d0f; --fg:#33ff66; --dim:#1f9e3f; --acc:#33ff66; --on-acc:#000; --field:#000; --btn:#031a03; --in:#031a03; --out:#0a3a14; --r:0; --font:ui-monospace, Menlo, Consolas, monospace; }
+  [data-theme="4"]  { --bg:#06141f; --card:#0b2233; --line:#15405c; --fg:#e3f3ff; --dim:#86a9c2; --acc:#2fb4ff; --on-acc:#021622; --field:#061a28; --btn:#123049; --in:#123049; --out:#0d4f7a; }
+  [data-theme="5"]  { --bg:#1a0d14; --card:#2a1420; --line:#4a2335; --fg:#ffe9df; --dim:#c49a8f; --acc:#ff8a4c; --on-acc:#2a0d00; --field:#1f0f17; --btn:#3a1c2b; --in:#3a1c2b; --out:#7a3324; --r:18px; }
+  [data-theme="6"]  { color-scheme: light; --bg:#fff; --card:#fff; --line:#000; --fg:#000; --dim:#555; --acc:#000; --on-acc:#fff; --bad:#000; --field:#fff; --btn:#fff; --in:#eee; --out:#ddd; --r:0; --font:Helvetica, Arial, sans-serif; }
+  [data-theme="7"]  { --bg:#0a0014; --card:#150026; --line:#3d0a6b; --fg:#f6e9ff; --dim:#a98bc4; --acc:#ff2bd6; --on-acc:#1a0014; --field:#0f001d; --btn:#25003f; --in:#25003f; --out:#5a0a63; --r:14px; }
+  [data-theme="8"]  { --bg:#0c140e; --card:#142218; --line:#253b2a; --fg:#e6f2e7; --dim:#8fa893; --acc:#8bd450; --on-acc:#0d1a05; --field:#0f1a12; --btn:#1d3022; --in:#1d3022; --out:#2f5a2a; }
+  [data-theme="9"]  { color-scheme: light; --bg:#f3eadb; --card:#fbf5ea; --line:#e0d2b8; --fg:#3b2f20; --dim:#8a7759; --acc:#c26a2e; --on-acc:#fff; --field:#fffaf1; --btn:#ecdfc6; --in:#ecdfc6; --out:#f0cfae; --r:10px; }
+  [data-theme="10"] { --bg:#000; --card:#000; --line:#fff; --fg:#fff; --dim:#ffeb3b; --acc:#ffeb3b; --on-acc:#000; --bad:#ff3b3b; --field:#000; --btn:#000; --in:#1a1a1a; --out:#333; --r:6px; }
+  [data-theme="11"] { color-scheme: light; --bg:#f4f1fb; --card:#fff; --line:#e1dbf3; --fg:#2a2340; --dim:#7c7499; --acc:#7a5cff; --on-acc:#fff; --field:#faf9ff; --btn:#ece8fb; --in:#ece8fb; --out:#ddd4ff; --r:16px; }
+  [data-theme="12"] { color-scheme: light; --bg:#fff; --card:#fff; --line:#f1d6e6; --fg:#1d1d1f; --dim:#7a6a73; --acc:#e20074; --on-acc:#fff; --field:#fff; --btn:#fbeef5; --in:#f4f4f6; --out:#fde3f0; --r:20px; }
   * { box-sizing: border-box; }
-  body { margin:0; font:15px/1.4 system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--fg); }
+  body { margin:0; font:15px/1.4 var(--font); background:var(--bg); color:var(--fg); }
   main { max-width:520px; margin:0 auto; padding:16px; }
   header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
   h1 { font-size:22px; margin:0; letter-spacing:.5px; }
   .dim { color:var(--dim); font-size:13px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; }
-  input, textarea, button { font:inherit; color:inherit; border-radius:8px; border:1px solid var(--line); background:#0f1318; padding:10px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:12px; margin-bottom:12px; }
+  input, textarea, button, select { font:inherit; color:inherit; border-radius:calc(var(--r) * .66); border:1px solid var(--line); background:var(--field); padding:10px; }
   input, textarea { width:100%; }
   textarea { resize:vertical; min-height:44px; }
-  button { cursor:pointer; background:#1d242c; }
-  button.go { background:var(--acc); color:#04140c; border-color:var(--acc); font-weight:600; }
+  button { cursor:pointer; background:var(--btn); }
+  button.go { background:var(--acc); color:var(--on-acc); border-color:var(--acc); font-weight:600; }
   button.bad { background:var(--bad); color:#fff; border-color:var(--bad); }
   .row { display:flex; gap:8px; margin-top:8px; }
   .row > * { flex:1; }
   #log { max-height:50vh; overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
-  .msg { padding:8px 10px; border-radius:10px; max-width:85%; word-wrap:break-word; }
-  .in { background:#1d242c; align-self:flex-start; }
-  .out { background:#164d36; align-self:flex-end; }
+  .msg { padding:8px 10px; border-radius:calc(var(--r) * .8); max-width:85%; word-wrap:break-word; }
+  .in { background:var(--in); align-self:flex-start; }
+  .out { background:var(--out); align-self:flex-end; }
   .meta { font-size:11px; color:var(--dim); }
   #status.ok { color:var(--acc); } #status.bad { color:var(--bad); }
   .hidden { display:none !important; }
 </style>
+<script>
+  (() => {
+    const t = new URLSearchParams(location.search).get("theme");
+    if (t) localStorage.setItem("membra.vn.theme", t);
+    const v = localStorage.getItem("membra.vn.theme");
+    if (/^([1-9]|1[0-2])$/.test(v || "")) document.documentElement.dataset.theme = v;
+  })();
+</script>
 </head>
 <body>
 <main>
   <header>
     <div><h1 id="me">VN</h1><div id="status" class="dim">starting…</div></div>
-    <button id="signout" class="hidden">Sign out</button>
+    <div><select id="theme" aria-label="Theme"></select> <button id="signout" class="hidden">Sign out</button></div>
   </header>
 
   <section id="welcome" class="card hidden">
@@ -195,6 +216,9 @@
     $("welcome-error").textContent = msg || ""; status("no number");
   }
 
+  ["Midnight", "Paper", "Terminal", "Ocean", "Sunset", "Mono", "Neon", "Forest", "Sand", "High contrast", "Lavender", "Bloom"].forEach((name, i) => $("theme").add(new Option(`${i + 1}. ${name}`, String(i + 1))));
+  $("theme").value = document.documentElement.dataset.theme || "1";
+  $("theme").onchange = () => { localStorage.setItem("membra.vn.theme", $("theme").value); document.documentElement.dataset.theme = $("theme").value; };
   $("call").onclick = dial;
   $("accept").onclick = accept;
   $("decline").onclick = () => { send({ type: "reject", to: call.peer, call_id: call.id }); endCall(); };

@@ -2,6 +2,7 @@
 texts and WebRTC call signaling between activated browser phones."""
 
 import base64
+import html
 import io
 import json
 import logging
@@ -11,6 +12,7 @@ from urllib.parse import urlsplit
 import qrcode
 from aiohttp import WSMsgType, web
 
+from membra_sdk.vn.contracts import resolve_all
 from membra_sdk.vn.store import ActivationError, VNStore
 
 log = logging.getLogger("membra.vn")
@@ -63,6 +65,20 @@ async def index(request: web.Request) -> web.Response:
 
 async def admin_page(request: web.Request) -> web.Response:
     return web.FileResponse(STATIC_DIR / "admin.html")
+
+
+async def landing(request: web.Request) -> web.Response:
+    page = (STATIC_DIR / "landing.html").read_text()
+    contact = request.app[CONFIG_KEY].get("contact")
+    if contact:
+        meta = f'<meta name="vn-contact" content="{html.escape(contact, quote=True)}">'
+        page = page.replace("<title>", meta + "\n<title>", 1)
+    return web.Response(text=page, content_type="text/html")
+
+
+async def contracts(request: web.Request) -> web.Response:
+    _require_admin(request)
+    return web.json_response(resolve_all(request.app[STORE_KEY]))
 
 
 async def config(request: web.Request) -> web.Response:
@@ -331,6 +347,7 @@ def create_app(
     admin_token: str | None = None,
     public_url: str | None = None,
     ice_servers: list[dict] | None = None,
+    contact: str | None = None,
 ) -> web.Application:
     app = web.Application(middlewares=[security_headers])
     app[STORE_KEY] = store
@@ -338,12 +355,16 @@ def create_app(
         "admin_token": admin_token,
         "public_url": public_url,
         "ice_servers": ice_servers or DEFAULT_ICE,
+        "contact": contact,
     }
     app[ONLINE_KEY] = {}
     app[SESSIONS_KEY] = {}
     app[CALLS_KEY] = {}
     app.router.add_get("/", index)
     app.router.add_get("/admin", admin_page)
+    app.router.add_get("/landing", landing)
+    app.router.add_get(r"/landing/{n:\d+}", landing)
+    app.router.add_get("/api/contracts", contracts)
     app.router.add_get("/api/config", config)
     app.router.add_post("/api/numbers", issue_number)
     app.router.add_get("/api/numbers", list_numbers)

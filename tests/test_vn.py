@@ -226,6 +226,48 @@ async def _devices_and_calls():
         await client.close()
 
 
+def test_contracts_resolve():
+    from membra_sdk.vn.contracts import CONTRACTS, resolve, resolve_all
+
+    store = _store()
+    assert len(CONTRACTS) == 12 and len({c.id for c in CONTRACTS}) == 12
+    a, b = store.issue().number, store.issue().number
+    store.add_message(a, b, "hi")
+    store.add_message(b, a, "yo")
+    by_id = {c.id: c for c in CONTRACTS}
+    early = resolve(store, by_id["VN-01"], now=0)
+    assert early["status"] == "OPEN" and early["value"] == 0
+    assert resolve(store, by_id["VN-01"])["value"] == 2
+    late = resolve(store, by_id["VN-01"], now=4102444800)
+    assert late["status"] == "NO"
+    assert resolve(store, by_id["VN-10"])["value"] == 1
+    assert resolve(store, by_id["VN-12"], now=4102444800)["status"] == "YES"
+    assert {r["status"] for r in resolve_all(store)} <= {"OPEN", "YES", "NO"}
+
+
+async def _landing_and_contracts_api():
+    client = TestClient(
+        TestServer(create_app(_store(), admin_token=ADMIN, contact="hi@example.com"))
+    )
+    await client.start_server()
+    try:
+        for path in ("/landing", "/landing/7", "/landing/12"):
+            r = await client.get(path)
+            text = await r.text()
+            assert r.status == 200 and 'content="hi@example.com"' in text
+        assert (await client.get("/api/contracts")).status == 401
+        r = await client.get(
+            "/api/contracts", headers={"Authorization": f"Bearer {ADMIN}"}
+        )
+        assert r.status == 200 and len(await r.json()) == 12
+    finally:
+        await client.close()
+
+
+def test_landing_and_contracts_api():
+    asyncio.run(_landing_and_contracts_api())
+
+
 def test_api_flow():
     asyncio.run(_api_flow())
 

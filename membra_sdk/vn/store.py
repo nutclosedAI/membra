@@ -174,6 +174,9 @@ class VNStore:
             is not None
         )
 
+    def scalar(self, sql: str, params: dict | tuple = ()):
+        return self._db.execute(sql, params).fetchone()[0]
+
     def list_numbers(self) -> list[dict]:
         rows = self._db.execute(
             "SELECT number, label, created_at FROM numbers ORDER BY created_at"

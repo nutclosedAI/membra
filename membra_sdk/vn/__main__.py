@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 from aiohttp import web
 
+from membra_sdk.vn.contracts import resolve_all
 from membra_sdk.vn.server import activation_uri, create_app, qr_png
 from membra_sdk.vn.store import VNStore
 
@@ -28,6 +29,11 @@ def main(argv=None) -> int:
     s.add_argument("--port", type=int, default=int(os.environ.get("VN_PORT", "8088")))
     s.add_argument("--public-url", default=os.environ.get("VN_PUBLIC_URL"))
     s.add_argument(
+        "--contact",
+        default=os.environ.get("VN_CONTACT"),
+        help="email shown on the /landing pages",
+    )
+    s.add_argument(
         "--ice",
         default=os.environ.get("VN_ICE_SERVERS"),
         help='JSON list of RTCIceServer, e.g. [{"urls":"turn:host:3478","username":"u","credential":"p"}]',
@@ -46,6 +52,7 @@ def main(argv=None) -> int:
     )
 
     sub.add_parser("list", help="list numbers")
+    sub.add_parser("contracts", help="resolve the 12 VN event contracts")
     r = sub.add_parser("revoke", help="sign out every device on a number")
     r.add_argument("number")
 
@@ -61,7 +68,11 @@ def main(argv=None) -> int:
             )
         ice = json.loads(args.ice) if args.ice else None
         app = create_app(
-            store, admin_token=admin, public_url=args.public_url, ice_servers=ice
+            store,
+            admin_token=admin,
+            public_url=args.public_url,
+            ice_servers=ice,
+            contact=args.contact,
         )
         web.run_app(app, host=args.host, port=args.port)
     elif args.cmd == "issue":
@@ -78,6 +89,12 @@ def main(argv=None) -> int:
         )
     elif args.cmd == "list":
         print(json.dumps(store.list_numbers(), indent=2))
+    elif args.cmd == "contracts":
+        for c in resolve_all(store):
+            print(
+                f"{c['id']}  {c['status']:<4}  {c['value']:>7} / {c['threshold']:<7}"
+                f"  {c['question']}"
+            )
     elif args.cmd == "revoke":
         print(f"revoked {store.revoke_number_devices(args.number)} device(s)")
     return 0

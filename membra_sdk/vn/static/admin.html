@@ -32,6 +32,7 @@
     <p>Scan with the phone camera. The code works once and expires <span id="exp"></span>.</p>
     <code id="url"></code>
   </div>
+  <div class="card"><b>Event contracts</b> <span style="color:#8a96a3;font-size:13px">yes/no questions on this network's stats; nothing is traded</span><table id="contracts"></table></div>
   <div class="card"><b>Numbers</b> <button id="refresh">Refresh</button><table id="list"></table></div>
 </main>
 <script>
@@ -56,8 +57,17 @@
       tr.insertCell().textContent = n.number; tr.insertCell().textContent = n.label; tr.insertCell().textContent = n.online ? "online" : "offline";
     }
   }
-  $("refresh").onclick = refresh;
-  if ($("token").value) refresh();
+  async function contracts() {
+    const r = await fetch("/api/contracts", { headers: auth() });
+    if (!r.ok) return;
+    $("contracts").textContent = "";
+    for (const c of await r.json()) {
+      const tr = $("contracts").insertRow();
+      [c.id, c.question, `${c.value} / ${c.threshold}`, c.status].forEach((v) => (tr.insertCell().textContent = v));
+    }
+  }
+  $("refresh").onclick = () => { refresh(); contracts(); };
+  if ($("token").value) { refresh(); contracts(); }
 </script>
 </body>
 </html>
