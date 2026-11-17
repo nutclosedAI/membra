@@ -23,6 +23,7 @@ DEFAULT_ICE = [{"urls": "stun:stun.l.google.com:19302"}]
 STORE_KEY = web.AppKey("store", VNStore)
 CONFIG_KEY = web.AppKey("config", dict)
 ONLINE_KEY = web.AppKey("online", dict)
+SESSIONS_KEY = web.AppKey("sessions", dict)
 
 
 def activation_uri(host: str, code: str) -> str:
@@ -129,9 +130,29 @@ async def signout(request: web.Request) -> web.Response:
     return web.Response(status=204)
 
 
-async def _send_to(app: web.Application, number: str, payload: dict) -> int:
+def _authorized(app: web.Application, ws) -> bool:
+    sess = app[SESSIONS_KEY].get(ws)
+    return bool(sess) and app[STORE_KEY].authenticate(sess["token"]) == sess["number"]
+
+
+async def _kick(ws) -> None:
+    try:
+        await ws.send_json({"type": "error", "error": "unauthorized"})
+    except (ConnectionResetError, RuntimeError):
+        pass
+    await ws.close()
+
+
+async def _send_to(
+    app: web.Application, number: str, payload: dict, exclude=None
+) -> int:
     sent = 0
     for ws in list(app[ONLINE_KEY].get(number, ())):
+        if ws is exclude:
+            continue
+        if not _authorized(app, ws):
+            await _kick(ws)
+            continue
         try:
             await ws.send_json(payload)
             sent += 1
@@ -185,6 +206,7 @@ async def websocket(request: web.Request) -> web.WebSocketResponse:
     app = request.app
     store = app[STORE_KEY]
     online: dict[str, set] = app[ONLINE_KEY]
+    sessions: dict = app[SESSIONS_KEY]
     number = None
     try:
         first = await ws.receive(timeout=15)
@@ -193,9 +215,9 @@ async def websocket(request: web.Request) -> web.WebSocketResponse:
             if auth.get("type") == "auth":
                 number = store.authenticate(str(auth.get("token", "")))
         if not number:
-            await ws.send_json({"type": "error", "error": "unauthorized"})
-            await ws.close()
+            await _kick(ws)
             return ws
+        sessions[ws] = {"token": str(auth["token"]), "number": number}
         online.setdefault(number, set()).add(ws)
         await ws.send_json({"type": "ready", "number": number})
         for msg in store.pending_for(number):
@@ -207,8 +229,12 @@ async def websocket(request: web.Request) -> web.WebSocketResponse:
                 data = json.loads(raw.data)
             except json.JSONDecodeError:
                 continue
+            if not _authorized(app, ws):
+                await _kick(ws)
+                break
             await _handle(app, number, ws, data)
     finally:
+        sessions.pop(ws, None)
         if number and ws in online.get(number, ()):
             online[number].discard(ws)
             if not online[number]:
@@ -238,6 +264,7 @@ def create_app(
         "ice_servers": ice_servers or DEFAULT_ICE,
     }
     app[ONLINE_KEY] = {}
+    app[SESSIONS_KEY] = {}
     app.router.add_get("/", index)
     app.router.add_get("/admin", admin_page)
     app.router.add_get("/api/config", config)
