@@ -227,6 +227,9 @@
   $("body").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("send").click(); } };
   $("signout").onclick = () => confirm("Remove this number from this device? You will need a new activation QR.") && signOut();
 
+  // A pasted activation link on an open page only changes the hash; reload to run it.
+  window.addEventListener("hashchange", () => { if (location.hash.startsWith("#vn:1$")) location.reload(); });
+
   (async () => {
     await activateFromHash();
     if (!creds) { show("welcome", true); status("no number"); return; }
