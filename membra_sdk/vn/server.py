@@ -162,8 +162,8 @@ async def _send_to(
 
 
 async def _deliver(app: web.Application, msg) -> None:
-    if await _send_to(app, msg.recipient, {"type": "sms", "message": msg.to_dict()}):
-        app[STORE_KEY].mark_delivered(msg.id)
+    # Stays pending until a phone acks it, so a half-dead socket can't swallow it.
+    await _send_to(app, msg.recipient, {"type": "sms", "message": msg.to_dict()})
 
 
 async def _handle(app: web.Application, number: str, ws, data: dict) -> None:
@@ -194,6 +194,11 @@ async def _handle(app: web.Application, number: str, ws, data: dict) -> None:
             await ws.send_json(
                 {"type": "hangup", "call_id": data.get("call_id"), "reason": reason}
             )
+    elif kind == "ack":
+        try:
+            store.mark_delivered(int(data.get("id")), number)
+        except (TypeError, ValueError):
+            pass
     elif kind == "ping":
         await ws.send_json({"type": "pong"})
     else:

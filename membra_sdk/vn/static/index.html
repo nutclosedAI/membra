@@ -125,7 +125,7 @@
   async function onSignal(d) {
     switch (d.type) {
       case "ready": retry = 1000; status("online", "ok"); break;
-      case "sms": addMessage(d.message); if (document.hidden && Notification?.permission === "granted") new Notification("Text from " + d.message.from, { body: d.message.body }); break;
+      case "sms": send({ type: "ack", id: d.message.id }); addMessage(d.message); if (document.hidden && Notification?.permission === "granted") new Notification("Text from " + d.message.from, { body: d.message.body }); break;
       case "sent": addMessage(d.message); $("body").value = ""; break;
       case "error": if (d.error === "unauthorized") signOut("This device was signed out."); else alert(d.error); break;
       case "call": if (call) send({ type: "reject", to: d.from, call_id: d.call_id }); else ringIn(d); break;

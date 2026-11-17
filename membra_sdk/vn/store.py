@@ -190,11 +190,12 @@ class VNStore:
             self._db.commit()
         return Message(cur.lastrowid, sender, recipient, body, now)
 
-    def mark_delivered(self, message_id: int) -> None:
+    def mark_delivered(self, message_id: int, recipient: str) -> None:
         with self._lock:
             self._db.execute(
-                "UPDATE messages SET delivered_at = ? WHERE id = ? AND delivered_at IS NULL",
-                (time.time(), message_id),
+                "UPDATE messages SET delivered_at = ? "
+                "WHERE id = ? AND recipient = ? AND delivered_at IS NULL",
+                (time.time(), message_id, recipient),
             )
             self._db.commit()
 
