@@ -128,7 +128,7 @@
       case "sms": send({ type: "ack", id: d.message.id }); addMessage(d.message); if (document.hidden && Notification?.permission === "granted") new Notification("Text from " + d.message.from, { body: d.message.body }); break;
       case "sent": addMessage(d.message); $("body").value = ""; break;
       case "error": if (d.error === "unauthorized") signOut("This device was signed out."); else alert(d.error); break;
-      case "call": if (call) send({ type: "reject", to: d.from, call_id: d.call_id }); else ringIn(d); break;
+      case "call": if (call) send({ type: "reject", to: d.from, call_id: d.call_id, busy: true }); else ringIn(d); break;
       case "answer": if (call && call.id === d.call_id) { await call.pc.setRemoteDescription(d.sdp); flushIce(); $("incall-state").textContent = "connected"; } break;
       case "ice": if (call && call.id === d.call_id) { call.remoteSet ? call.pc.addIceCandidate(d.candidate) : call.pending.push(d.candidate); } break;
       case "hangup": case "reject": if (call && call.id === d.call_id) endCall(d.reason || (d.type === "reject" ? "declined" : "ended")); break;

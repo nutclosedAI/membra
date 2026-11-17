@@ -24,6 +24,7 @@ STORE_KEY = web.AppKey("store", VNStore)
 CONFIG_KEY = web.AppKey("config", dict)
 ONLINE_KEY = web.AppKey("online", dict)
 SESSIONS_KEY = web.AppKey("sessions", dict)
+CALLS_KEY = web.AppKey("calls", dict)
 
 
 def activation_uri(host: str, code: str) -> str:
@@ -161,6 +162,12 @@ async def _send_to(
     return sent
 
 
+def _forget_call(app: web.Application, call_id: str) -> None:
+    app[CALLS_KEY].pop(call_id, None)
+    for sess in app[SESSIONS_KEY].values():
+        sess["calls"].pop(call_id, None)
+
+
 async def _deliver(app: web.Application, msg) -> None:
     # Stays pending until a phone acks it, so a half-dead socket can't swallow it.
     await _send_to(app, msg.recipient, {"type": "sms", "message": msg.to_dict()})
@@ -184,16 +191,57 @@ async def _handle(app: web.Application, number: str, ws, data: dict) -> None:
         await ws.send_json({"type": "sent", "message": msg.to_dict()})
         await _deliver(app, msg)
     elif kind in SIGNAL_TYPES:
+        calls = app[CALLS_KEY]
+        call_id = str(data.get("call_id", ""))
+        ring = calls.get(call_id)
+        if kind in ("answer", "reject") and ring and ring["callee"] == number:
+            if ring["by"] is not None and ring["by"] is not ws:
+                return  # another device on this number already took the call
+            ring["ringing"].discard(ws)
+            if kind == "reject" and data.get("busy"):
+                if ring["ringing"]:
+                    return  # other devices on this number are still ringing
+            else:
+                ring["by"] = ws
+                ring["ringing"].clear()
+                note = "answered" if kind == "answer" else "declined"
+                await _send_to(
+                    app,
+                    number,
+                    {
+                        "type": "hangup",
+                        "call_id": call_id,
+                        "reason": f"{note} on another device",
+                    },
+                    exclude=ws,
+                )
         payload = {
             k: v for k, v in data.items() if k in ("call_id", "sdp", "candidate")
         }
         payload.update(type=kind, **{"from": number})
+        if kind == "reject" and data.get("busy"):
+            payload["reason"] = "busy"
+        if kind == "call":
+            calls[call_id] = {
+                "caller": number,
+                "callee": to,
+                "by": None,
+                "ringing": set(app[ONLINE_KEY].get(to, ())),
+            }
+            app[SESSIONS_KEY][ws]["calls"][call_id] = to
         delivered = await _send_to(app, to, payload)
         if kind == "call" and not delivered:
+            _forget_call(app, call_id)
             reason = "unknown number" if not store.number_exists(to) else "unavailable"
             await ws.send_json(
                 {"type": "hangup", "call_id": data.get("call_id"), "reason": reason}
             )
+        elif kind == "answer":
+            app[SESSIONS_KEY][ws]["calls"][call_id] = to
+        elif kind in ("hangup", "reject") and (
+            ring is None or number in (ring["caller"], ring["callee"])
+        ):
+            _forget_call(app, call_id)
     elif kind == "ack":
         try:
             store.mark_delivered(int(data.get("id")), number)
@@ -222,7 +270,7 @@ async def websocket(request: web.Request) -> web.WebSocketResponse:
         if not number:
             await _kick(ws)
             return ws
-        sessions[ws] = {"token": str(auth["token"]), "number": number}
+        sessions[ws] = {"token": str(auth["token"]), "number": number, "calls": {}}
         online.setdefault(number, set()).add(ws)
         await ws.send_json({"type": "ready", "number": number})
         for msg in store.pending_for(number):
@@ -239,12 +287,35 @@ async def websocket(request: web.Request) -> web.WebSocketResponse:
                 break
             await _handle(app, number, ws, data)
     finally:
-        sessions.pop(ws, None)
+        sess = sessions.pop(ws, None)
         if number and ws in online.get(number, ()):
             online[number].discard(ws)
             if not online[number]:
                 del online[number]
+        if sess:
+            await _drop_calls(app, number, ws, sess["calls"])
     return ws
+
+
+async def _drop_calls(app: web.Application, number: str, ws, mine: dict) -> None:
+    """Hang up calls a closed socket was in, so the other side doesn't ring on."""
+    for call_id, peer in list(mine.items()):
+        _forget_call(app, call_id)
+        await _send_to(
+            app,
+            peer,
+            {"type": "hangup", "call_id": call_id, "from": number, "reason": "ended"},
+        )
+    for call_id, ring in list(app[CALLS_KEY].items()):
+        if ws in ring["ringing"]:
+            ring["ringing"].discard(ws)
+            if not ring["ringing"] and ring["by"] is None:
+                _forget_call(app, call_id)
+                await _send_to(
+                    app,
+                    ring["caller"],
+                    {"type": "hangup", "call_id": call_id, "reason": "unavailable"},
+                )
 
 
 @web.middleware
@@ -270,6 +341,7 @@ def create_app(
     }
     app[ONLINE_KEY] = {}
     app[SESSIONS_KEY] = {}
+    app[CALLS_KEY] = {}
     app.router.add_get("/", index)
     app.router.add_get("/admin", admin_page)
     app.router.add_get("/api/config", config)
